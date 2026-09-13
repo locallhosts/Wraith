@@ -1,0 +1,19 @@
+# Optional: additional SIEM backends for sigma_translate.py --backend {name}.
+# Install alongside requirements.txt if you want translation (not yet live
+# CI validation — see sigma_translate.py's docstring) for these platforms.
+#
+# All four are verified compatible with pysigma==1.5.0 (pinned in
+# requirements.txt) as of this writing. Two well-known backends are
+# deliberately NOT listed here because they're pinned to old, incompatible
+# pysigma core versions and appear unmaintained — see sigma_translate.py's
+# module docstring for the full explanation:
+#   - pysigma-backend-qradar   (requires pysigma<0.10.0)
+#   - pysigma-backend-datadog  (requires pysigma<0.12.0)
+#
+# Install with: pip install -r requirements.txt -r requirements-siem.txt
+
+pysigma-backend-opensearch==2.0.3
+pysigma-backend-splunk==2.1.0
+pysigma-backend-kusto==1.0.1        # Microsoft Sentinel / Defender (KQL)
+pysigma-backend-crowdstrike==3.0.0  # CrowdStrike LogScale
+pysigma-backend-loki==0.13.0        # Grafana Loki (LogQL)

@@ -1,0 +1,26 @@
+# Go
+backend-go/wraith
+*.exe
+/tmp/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+engine-python/output/
+
+# Node
+node_modules/
+.next/
+frontend/.env*.local
+
+# Terraform
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/terraform.tfvars
+
+# Misc
+.DS_Store
+*.log

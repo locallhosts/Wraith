@@ -1,0 +1,96 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=wraith
+      - POSTGRES_PASSWORD=${WRAITH_POSTGRES_PASSWORD:-wraith-dev-password-change-me}
+      - POSTGRES_DB=wraith
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wraith"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5.19-community
+    environment:
+      - NEO4J_AUTH=neo4j/wraith-test-pw
+      - NEO4J_PLUGINS=["apoc"]
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend-go
+    environment:
+      - WRAITH_ES_ADDR=http://elasticsearch:9200
+      - WRAITH_NEO4J_ADDR=bolt://neo4j:7687
+      - WRAITH_DATABASE_URL=postgres://wraith:${WRAITH_POSTGRES_PASSWORD:-wraith-dev-password-change-me}@postgres:5432/wraith?sslmode=disable
+      - WRAITH_WEBHOOK_SECRET=${WRAITH_WEBHOOK_SECRET:-dev-secret-change-me}
+      - WRAITH_SIGNING_PUBLIC_KEY=${WRAITH_SIGNING_PUBLIC_KEY:-}
+      - WRAITH_SLACK_WEBHOOK_URL=${WRAITH_SLACK_WEBHOOK_URL:-}
+      - WRAITH_RATE_LIMIT_RPM=${WRAITH_RATE_LIMIT_RPM:-120}
+      - WRAITH_RULES_DIR=/app/rules
+      - WRAITH_PORT=8080
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GITHUB_REPO=${GITHUB_REPO:-}
+    volumes:
+      - ./rules:/app/rules:ro
+      - ./engine-python:/app/engine-python:ro
+      - pipeline_output:/app/engine-python/output
+    ports:
+      - "8080:8080"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      - NEXT_PUBLIC_API_BASE=http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  es_data:
+  neo4j_data:
+  pg_data:
+  pipeline_output:

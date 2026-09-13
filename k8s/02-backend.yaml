@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wraith-backend
+  namespace: wraith
+  labels:
+    app: wraith-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: wraith-backend
+  template:
+    metadata:
+      labels:
+        app: wraith-backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        fsGroup: 65532
+      containers:
+        - name: wraith-backend
+          image: ghcr.io/yourname/wraith-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: wraith-config
+            - secretRef:
+                name: wraith-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: pipeline-output
+              mountPath: /app/engine-python/output
+      volumes:
+        - name: pipeline-output
+          persistentVolumeClaim:
+            claimName: wraith-pipeline-output
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wraith-backend
+  namespace: wraith
+spec:
+  selector:
+    app: wraith-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: wraith-backend
+  namespace: wraith
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: wraith-backend
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wraith-pipeline-output
+  namespace: wraith
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 10Gi

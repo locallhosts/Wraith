@@ -1,0 +1,28 @@
+title: Suspicious PowerShell EncodedCommand Execution
+id: 8f1a2b3c-4d5e-4a4a-9a9a-abcdefabcdef
+status: test
+description: >
+  Detects PowerShell invoked with -EncodedCommand (or -enc/-e shorthand),
+  a common technique used to obfuscate stage-2 payload delivery and evade
+  simple string-matching detections.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+author: wraith
+date: 2024/01/01
+tags:
+  - attack.execution
+  - attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    process_name: powershell.exe
+    command_line|contains:
+      - '-EncodedCommand'
+      - '-enc '
+      - '-e '
+  condition: selection
+falsepositives:
+  - Legitimate scheduled admin scripts that use encoded commands (rare, should be allow-listed by hash/host)
+level: high

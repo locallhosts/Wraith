@@ -1,0 +1,6 @@
+apiVersion: v2
+name: wraith
+description: Predictive detection engineering platform — Sigma rule testing, adversarial robustness fuzzing, and signed provenance attestation.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

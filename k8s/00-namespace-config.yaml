@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: wraith
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wraith-config
+  namespace: wraith
+data:
+  WRAITH_PORT: "8080"
+  WRAITH_RULES_DIR: "/app/rules"
+  WRAITH_ES_ADDR: "http://wraith-elasticsearch:9200"
+  WRAITH_NEO4J_ADDR: "bolt://wraith-neo4j:7687"
+  WRAITH_METRICS_ENABLED: "true"
+  WRAITH_RATE_LIMIT_RPM: "120"

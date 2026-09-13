@@ -1,0 +1,142 @@
+name: Detection CI
+
+on:
+  pull_request:
+    paths:
+      - "rules/**.yml"
+      - "rules/**.yaml"
+
+jobs:
+  changed-rules:
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.diff.outputs.files }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'rules/*.yml' 'rules/*.yaml' | tr '\n' ' ')
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+
+  lint:
+    needs: changed-rules
+    if: needs.changed-rules.outputs.files != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: backend-go/go.sum
+      - name: Lint changed Sigma rules
+        working-directory: backend-go
+        run: |
+          go build -o /tmp/wraith .
+          for f in ${{ needs.changed-rules.outputs.files }}; do
+            echo "linting $f"
+            /tmp/wraith lint "$(dirname "../$f")" || exit 1
+          done
+
+  store-integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: wraith
+          POSTGRES_PASSWORD: wraith-ci-password
+          POSTGRES_DB: wraith
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wraith"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: backend-go/go.sum
+      - name: Run Postgres store integration tests
+        working-directory: backend-go
+        env:
+          WRAITH_TEST_DATABASE_URL: postgres://wraith:wraith-ci-password@localhost:5432/wraith?sslmode=disable
+        run: go test -tags=integration ./store/... -v
+
+  test-detections:
+    needs: [changed-rules, lint]
+    if: needs.changed-rules.outputs.files != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rule_file: ${{ fromJson(format('[{0}]', needs.changed-rules.outputs.files)) }}
+      fail-fast: false
+    services:
+      elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+        env:
+          discovery.type: single-node
+          xpack.security.enabled: "false"
+        ports: ["9200:9200"]
+        options: >-
+          --health-cmd "curl -sf http://localhost:9200/_cluster/health || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      neo4j:
+        image: neo4j:5.19-community
+        env:
+          NEO4J_AUTH: neo4j/wraith-test-pw
+        ports: ["7474:7474", "7687:7687"]
+        options: >-
+          --health-cmd "wget -qO- http://localhost:7474 || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python engine dependencies
+        working-directory: engine-python
+        run: pip install -r requirements.txt
+
+      - name: Run detection pipeline
+        working-directory: engine-python
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_BASE_BRANCH: ${{ github.base_ref }}
+        run: |
+          echo "RUN_ID=${{ github.event.pull_request.head.sha }}-$(echo ${{ matrix.rule_file }} | md5sum | cut -c1-8)" >> "$GITHUB_ENV"
+          python run_pipeline.py \
+            --rule "../${{ matrix.rule_file }}" \
+            --run-id "$RUN_ID" \
+            --es-addr http://localhost:9200 \
+            --neo4j-addr bolt://localhost:7687 \
+            --open-pr
+
+      - uses: actions/setup-go@v5
+        if: always()
+        with:
+          go-version: "1.22"
+
+      - name: Sign provenance attestation
+        if: always()
+        working-directory: backend-go
+        env:
+          WRAITH_SIGNING_PRIVATE_KEY: ${{ secrets.WRAITH_SIGNING_PRIVATE_KEY }}
+        run: |
+          go build -o /tmp/wraith .
+          /tmp/wraith attest \
+            --report "../engine-python/output/${RUN_ID}/report.json" \
+            --rule "../${{ matrix.rule_file }}" \
+            --out "../engine-python/output/${RUN_ID}/attestation.json"
+
+      - name: Upload report + attestation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wraith-report-${{ strategy.job-index }}
+          path: engine-python/output/

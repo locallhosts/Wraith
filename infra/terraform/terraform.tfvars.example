@@ -1,0 +1,4 @@
+environment            = "staging"
+neo4j_password         = "change-me-before-applying"
+webhook_secret         = "change-me-before-applying"
+wraith_backend_image   = "ghcr.io/yourname/wraith-backend:latest"

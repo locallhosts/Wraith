@@ -1,0 +1,62 @@
+name: 'WRAITH Sigma Lint'
+description: >
+  Validates Sigma detection rules against schema requirements and
+  detection-engineering best practices (required fields, MITRE ATT&CK
+  tagging, documented false positives) on every pull request. Zero
+  external services required — no Elasticsearch/Neo4j needed for this
+  action; it's the fast, always-on first gate. For the full attack
+  simulation + false-positive + adversarial-robustness pipeline, see
+  docs/USING_AS_ACTION.md for the reusable workflow instead.
+author: 'wraith contributors'
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  rules-path:
+    description: 'Directory containing Sigma rule YAML files to lint'
+    required: false
+    default: 'rules'
+  fail-on-warning:
+    description: 'Treat warning-severity lint issues as failures too (default: only errors fail)'
+    required: false
+    default: 'false'
+
+outputs:
+  passed:
+    description: '"true" if every rule in rules-path passed linting, "false" otherwise'
+    value: ${{ steps.lint.outputs.passed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build wraith CLI
+      shell: bash
+      working-directory: ${{ github.action_path }}/backend-go
+      run: go build -o /tmp/wraith .
+
+    - name: Lint Sigma rules
+      id: lint
+      shell: bash
+      run: |
+        set +e
+        if [ "${{ inputs.fail-on-warning }}" = "true" ]; then
+          /tmp/wraith lint "${{ inputs.rules-path }}" --strict
+        else
+          /tmp/wraith lint "${{ inputs.rules-path }}"
+        fi
+        LINT_EXIT=$?
+        set -e
+
+        if [ "$LINT_EXIT" -eq 0 ]; then
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+          echo "::error::One or more Sigma rules in '${{ inputs.rules-path }}' failed validation — see annotations above."
+          exit 1
+        fi

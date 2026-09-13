@@ -1,0 +1,46 @@
+name: Bug report
+description: Something in WRAITH doesn't behave the way it should
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which component?
+      options:
+        - backend-go (API, linter, orchestrator, validator, provenance, deploy, auth)
+        - engine-python (baseline generator, attack simulator, robustness fuzzer, SOAR playbook, sigma_translate)
+        - frontend (dashboard)
+        - tools/logblast (C throughput tool)
+        - infra/terraform or k8s/ or charts/
+        - GitHub Action (action.yml)
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact command/request and the actual output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS (Ubuntu 22.04/24.04, WSL2, macOS, etc.), Go/Python/Node versions, Docker version.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checked-docs
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked the "Verification status" section of the README and docs/ENTERPRISE.md's known-simplifications list to see if this is a documented gap rather than a bug
+          required: true

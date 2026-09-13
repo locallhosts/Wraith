@@ -1,0 +1,147 @@
+openapi: 3.0.3
+info:
+  title: WRAITH API
+  version: "1.0"
+  description: >
+    Predictive detection engineering platform API. All routes except
+    /healthz, /readyz, /metrics, and /webhook/github require a Bearer API
+    key; role requirements are noted per route.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "API key issued via `wraith apikey create`"
+  schemas:
+    RunStatus:
+      type: object
+      properties:
+        run_id: { type: string }
+        rule_path: { type: string }
+        rule_id: { type: string }
+        rule_title: { type: string }
+        repo: { type: string }
+        pr_number: { type: integer }
+        stage:
+          type: string
+          enum: [lint, provision, simulate, validate, soar, done, failed]
+        passed: { type: boolean, nullable: true }
+        reason: { type: string }
+        approved_by: { type: string }
+        approved_at: { type: string, format: date-time, nullable: true }
+        deployed_at: { type: string, format: date-time, nullable: true }
+        started_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        actor: { type: string }
+        actor_role: { type: string }
+        action: { type: string }
+        resource: { type: string }
+        detail: { type: string }
+        ip_address: { type: string }
+        timestamp: { type: string, format: date-time }
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      security: []
+      responses: { "200": { description: OK } }
+  /readyz:
+    get:
+      summary: Readiness probe (checks store connectivity)
+      security: []
+      responses:
+        "200": { description: Ready }
+        "503": { description: Not ready }
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      security: []
+      responses: { "200": { description: OK } }
+  /webhook/github:
+    post:
+      summary: GitHub pull_request webhook receiver (HMAC-verified, not API-key auth)
+      security: []
+      responses:
+        "200": { description: Accepted, pipeline runs triggered for changed rules }
+        "401": { description: Invalid signature }
+  /runs:
+    get:
+      summary: List recent pipeline runs
+      description: Requires role >= viewer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RunStatus" }
+  /runs/{id}:
+    get:
+      summary: Get one run's status
+      description: Requires role >= viewer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunStatus" }
+        "404": { description: Not found }
+  /runs/{id}/approve:
+    post:
+      summary: Human-in-the-loop approval of a passing run
+      description: Requires role >= lead. Precondition for /deploy.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Approved }
+        "409": { description: Run has not passed and cannot be approved }
+  /runs/{id}/deploy:
+    post:
+      summary: Promote an approved, attested run to the production SIEM
+      description: >
+        Requires role >= lead, a prior approval, and a valid ed25519
+        provenance attestation matching the rule's CURRENT content.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Deployed }
+        "403": { description: Attestation invalid, untrusted, or rule content has drifted since testing }
+        "409": { description: Run has not been approved }
+        "503": { description: Signing/trust key not configured on this server }
+  /lint:
+    post:
+      summary: Manually lint all rules in the configured rules directory
+      description: Requires role >= analyst
+      responses: { "200": { description: OK } }
+  /audit:
+    get:
+      summary: Full audit trail
+      description: Requires role >= admin
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditEntry" }

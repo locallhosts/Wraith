@@ -1,0 +1,15 @@
+elasticsearch==8.13.0
+neo4j==5.19.0
+pyyaml==6.0.1
+faker==24.4.0
+anthropic==0.25.7
+click==8.1.7
+python-dateutil==2.9.0
+
+# Core Sigma translation + the Elasticsearch backend, since that's what
+# run_pipeline.py's live attack-simulation validation runs against today.
+# For Splunk/Sentinel/CrowdStrike/Loki/OpenSearch translation (not yet
+# live-validated — see sigma_translate.py's docstring), also install
+# requirements-siem.txt.
+pysigma==1.5.0
+pysigma-backend-elasticsearch==2.1.1

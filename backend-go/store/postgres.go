@@ -1,0 +1,234 @@
+package store
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	_ "github.com/lib/pq"
+)
+
+// PostgresStore is the production implementation of Store. It applies
+// schema.sql idempotently on startup so a fresh deployment needs no
+// separate migration step for the initial schema.
+type PostgresStore struct {
+	db *sql.DB
+}
+
+func NewPostgresStore(ctx context.Context, dsn string) (*PostgresStore, error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("opening postgres connection: %w", err)
+	}
+	db.SetMaxOpenConns(20)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("pinging postgres: %w", err)
+	}
+
+	p := &PostgresStore{db: db}
+	if err := p.applySchema(ctx); err != nil {
+		return nil, fmt.Errorf("applying schema: %w", err)
+	}
+	return p, nil
+}
+
+func (p *PostgresStore) applySchema(ctx context.Context) error {
+	_, err := p.db.ExecContext(ctx, schemaSQL)
+	return err
+}
+
+func (p *PostgresStore) PutRun(ctx context.Context, r *RunStatus) error {
+	_, err := p.db.ExecContext(ctx, `
+		INSERT INTO runs (run_id, rule_path, rule_id, rule_title, repo, pr_number, stage,
+		                   passed, reason, approved_by, approved_at, deployed_at, started_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, COALESCE($13, now()), now())
+		ON CONFLICT (run_id) DO UPDATE SET
+			stage = EXCLUDED.stage,
+			passed = EXCLUDED.passed,
+			reason = EXCLUDED.reason,
+			approved_by = EXCLUDED.approved_by,
+			approved_at = EXCLUDED.approved_at,
+			deployed_at = EXCLUDED.deployed_at,
+			updated_at = now()
+	`,
+		r.RunID, r.RulePath, r.RuleID, r.RuleTitle, r.Repo, r.PRNumber, r.Stage,
+		r.Passed, r.Reason, r.ApprovedBy, r.ApprovedAt, r.DeployedAt, nullTime(r.StartedAt),
+	)
+	return err
+}
+
+func nullTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
+func (p *PostgresStore) GetRun(ctx context.Context, runID string) (*RunStatus, error) {
+	row := p.db.QueryRowContext(ctx, `
+		SELECT run_id, rule_path, rule_id, rule_title, repo, pr_number, stage,
+		       passed, reason, approved_by, approved_at, deployed_at, started_at, updated_at
+		FROM runs WHERE run_id = $1
+	`, runID)
+	r, err := scanRun(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return r, err
+}
+
+func (p *PostgresStore) ListRuns(ctx context.Context, limit int) ([]*RunStatus, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := p.db.QueryContext(ctx, `
+		SELECT run_id, rule_path, rule_id, rule_title, repo, pr_number, stage,
+		       passed, reason, approved_by, approved_at, deployed_at, started_at, updated_at
+		FROM runs ORDER BY started_at DESC LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*RunStatus
+	for rows.Next() {
+		r, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanRun(row rowScanner) (*RunStatus, error) {
+	var r RunStatus
+	var approvedAt, deployedAt sql.NullTime
+	var passed sql.NullBool
+	err := row.Scan(
+		&r.RunID, &r.RulePath, &r.RuleID, &r.RuleTitle, &r.Repo, &r.PRNumber, &r.Stage,
+		&passed, &r.Reason, &r.ApprovedBy, &approvedAt, &deployedAt, &r.StartedAt, &r.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if passed.Valid {
+		v := passed.Bool
+		r.Passed = &v
+	}
+	if approvedAt.Valid {
+		r.ApprovedAt = &approvedAt.Time
+	}
+	if deployedAt.Valid {
+		r.DeployedAt = &deployedAt.Time
+	}
+	return &r, nil
+}
+
+func (p *PostgresStore) AppendAudit(ctx context.Context, e *AuditEntry) error {
+	return p.db.QueryRowContext(ctx, `
+		INSERT INTO audit_log (actor, actor_role, action, resource, detail, ip_address)
+		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, ts
+	`, e.Actor, e.ActorRole, e.Action, e.Resource, e.Detail, e.IPAddress).Scan(&e.ID, &e.Timestamp)
+}
+
+func (p *PostgresStore) ListAudit(ctx context.Context, limit int) ([]*AuditEntry, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := p.db.QueryContext(ctx, `
+		SELECT id, actor, actor_role, action, resource, detail, ip_address, ts
+		FROM audit_log ORDER BY ts DESC LIMIT $1
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*AuditEntry
+	for rows.Next() {
+		var e AuditEntry
+		if err := rows.Scan(&e.ID, &e.Actor, &e.ActorRole, &e.Action, &e.Resource, &e.Detail, &e.IPAddress, &e.Timestamp); err != nil {
+			return nil, err
+		}
+		out = append(out, &e)
+	}
+	return out, rows.Err()
+}
+
+func (p *PostgresStore) GetAPIKey(ctx context.Context, keyHash string) (*APIKey, error) {
+	var k APIKey
+	err := p.db.QueryRowContext(ctx, `
+		SELECT key_hash, label, role, created_at, revoked FROM api_keys WHERE key_hash = $1
+	`, keyHash).Scan(&k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return &k, err
+}
+
+func (p *PostgresStore) Ping(ctx context.Context) error { return p.db.PingContext(ctx) }
+func (p *PostgresStore) Close() error                   { return p.db.Close() }
+
+// CreateAPIKey is a convenience used by the `wraith apikey create` CLI
+// command. Returns nothing sensitive — the caller already has the raw key.
+func (p *PostgresStore) CreateAPIKey(ctx context.Context, keyHash, label, role string) error {
+	_, err := p.db.ExecContext(ctx, `
+		INSERT INTO api_keys (key_hash, label, role) VALUES ($1,$2,$3)
+	`, keyHash, label, role)
+	return err
+}
+
+const schemaSQL = `
+CREATE TABLE IF NOT EXISTS runs (
+    run_id       TEXT PRIMARY KEY,
+    rule_path    TEXT NOT NULL,
+    rule_id      TEXT NOT NULL,
+    rule_title   TEXT NOT NULL DEFAULT '',
+    repo         TEXT NOT NULL,
+    pr_number    INTEGER NOT NULL DEFAULT 0,
+    stage        TEXT NOT NULL,
+    passed       BOOLEAN,
+    reason       TEXT NOT NULL DEFAULT '',
+    approved_by  TEXT NOT NULL DEFAULT '',
+    approved_at  TIMESTAMPTZ,
+    deployed_at  TIMESTAMPTZ,
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_runs_rule_id ON runs (rule_id);
+CREATE INDEX IF NOT EXISTS idx_runs_repo ON runs (repo);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          BIGSERIAL PRIMARY KEY,
+    actor       TEXT NOT NULL,
+    actor_role  TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    resource    TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '',
+    ip_address  TEXT NOT NULL DEFAULT '',
+    ts          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log (ts DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log (resource);
+CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log (actor);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    key_hash    TEXT PRIMARY KEY,
+    label       TEXT NOT NULL,
+    role        TEXT NOT NULL CHECK (role IN ('viewer', 'analyst', 'lead', 'admin')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    revoked     BOOLEAN NOT NULL DEFAULT false
+);
+`

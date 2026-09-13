@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something new for WRAITH
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that WRAITH doesn't support today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach (if you have one)
+      description: Doesn't need to be a full design — even "I think this belongs in engine-python/ near X" is useful.
+  - type: checkboxes
+    id: checked-roadmap
+    attributes:
+      label: Before submitting
+      options:
+        - label: I checked CONTRIBUTING.md's "high-value, well-scoped starting points" list and docs/ENTERPRISE.md's roadmap notes — this isn't already tracked there
+          required: true

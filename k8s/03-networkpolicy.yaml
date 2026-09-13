@@ -1,0 +1,45 @@
+# Defense in depth: even if the backend container is compromised, restrict
+# what it can talk to. Adjust CIDR/ports for your actual Elasticsearch,
+# Neo4j, and Postgres locations.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: wraith-backend-netpol
+  namespace: wraith
+spec:
+  podSelector:
+    matchLabels:
+      app: wraith-backend
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+    - from:
+        - namespaceSelector: {} # tighten to your ingress controller's namespace in production
+      ports:
+        - port: 8080
+  egress:
+    - to: [] # allow DNS
+      ports:
+        - port: 53
+          protocol: UDP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: wraith-elasticsearch
+      ports:
+        - port: 9200
+    - to:
+        - podSelector:
+            matchLabels:
+              app: wraith-neo4j
+      ports:
+        - port: 7687
+    - to:
+        - podSelector:
+            matchLabels:
+              app: wraith-postgres
+      ports:
+        - port: 5432
+    - to: [] # HTTPS egress for Anthropic API, GitHub API, Slack webhook
+      ports:
+        - port: 443
+          protocol: TCP

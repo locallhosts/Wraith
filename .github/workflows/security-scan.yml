@@ -5,42 +5,56 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 6 * * 1" # weekly Monday scan catches newly-disclosed CVEs in unchanged code
+    - cron: "0 6 * * 1"
 
 jobs:
   gosec:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
+
       - name: Run gosec (Go SAST)
         uses: securego/gosec@master
         with:
           args: "-fmt sarif -out gosec-results.sarif ./backend-go/..."
-      - uses: github/codeql-action/upload-sarif@v3
+
+      - name: Upload gosec SARIF
         if: always()
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec-results.sarif
 
   codeql:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       security-events: write
     strategy:
       matrix:
         language: ["go", "python", "javascript-typescript"]
+
     steps:
       - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
+
+      - uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@v3
-      - uses: github/codeql-action/analyze@v3
+
+      - uses: github/codeql-action/autobuild@v4
+
+      - uses: github/codeql-action/analyze@v4
 
   dependency-review:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/dependency-review-action@v4
         with:
           fail-on-severity: high
@@ -49,35 +63,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
+        with:
+          python-version: "3.11"
+
       - run: pip install pip-audit
+
       - run: pip-audit -r engine-python/requirements.txt --desc
 
   npm-audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
-        with: { node-version: "20" }
+        with:
+          node-version: "20"
+
       - working-directory: frontend
         run: npm install --package-lock-only && npm audit --audit-level=high
 
   trivy-container-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Build backend image
         run: docker build -t wraith-backend:scan ./backend-go
+
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: wraith-backend:scan
           format: sarif
           output: trivy-results.sarif
           severity: "CRITICAL,HIGH"
-      - uses: github/codeql-action/upload-sarif@v3
+
+      - name: Upload Trivy SARIF
         if: always()
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
 
@@ -85,7 +114,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with:
+          fetch-depth: 0
+
       - name: Scan for committed secrets
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -95,6 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: tfsec
         uses: aquasecurity/tfsec-action@v1.0.3
         with:

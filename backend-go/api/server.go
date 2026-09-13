@@ -18,14 +18,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/yourname/wraith/backend-go/auth"
-	"github.com/yourname/wraith/backend-go/deploy"
-	"github.com/yourname/wraith/backend-go/linter"
-	"github.com/yourname/wraith/backend-go/metrics"
-	"github.com/yourname/wraith/backend-go/notify"
-	"github.com/yourname/wraith/backend-go/provenance"
-	"github.com/yourname/wraith/backend-go/store"
-	"github.com/yourname/wraith/backend-go/webhook"
+	"github.com/locallhosts/Wraith/backend-go/auth"
+	"github.com/locallhosts/Wraith/backend-go/deploy"
+	"github.com/locallhosts/Wraith/backend-go/linter"
+	"github.com/locallhosts/Wraith/backend-go/metrics"
+	"github.com/locallhosts/Wraith/backend-go/notify"
+	"github.com/locallhosts/Wraith/backend-go/provenance"
+	"github.com/locallhosts/Wraith/backend-go/store"
+	"github.com/locallhosts/Wraith/backend-go/webhook"
 )
 
 // Server bundles routes and dependencies. Nil optional fields (Slack,

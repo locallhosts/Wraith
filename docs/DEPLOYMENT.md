@@ -33,7 +33,7 @@ docker build -t wraith-backend:local ./backend-go
 kind load docker-image wraith-backend:local --name wraith
 
 # point the manifests at the locally-loaded image
-sed -i 's#ghcr.io/yourname/wraith-backend:latest#wraith-backend:local#' k8s/02-backend.yaml
+sed -i 's#ghcr.io/locallhosts/Wraith-backend:latest#wraith-backend:local#' k8s/02-backend.yaml
 ```
 
 ### Option B: minikube
@@ -42,7 +42,7 @@ sed -i 's#ghcr.io/yourname/wraith-backend:latest#wraith-backend:local#' k8s/02-b
 minikube start
 eval $(minikube docker-env)   # build directly into minikube's Docker daemon
 docker build -t wraith-backend:local ./backend-go
-sed -i 's#ghcr.io/yourname/wraith-backend:latest#wraith-backend:local#' k8s/02-backend.yaml
+sed -i 's#ghcr.io/locallhosts/Wraith-backend:latest#wraith-backend:local#' k8s/02-backend.yaml
 ```
 
 ### Deploy to the local cluster

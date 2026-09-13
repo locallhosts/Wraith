@@ -20,7 +20,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourname/wraith/backend-go/store"
+	"github.com/locallhosts/Wraith/backend-go/store"
 )
 
 var roleRank = map[string]int{

@@ -19,7 +19,7 @@ import (
 	"time"
 
 	elasticsearch "github.com/elastic/go-elasticsearch/v8"
-	"github.com/yourname/wraith/backend-go/provenance"
+	"github.com/locallhosts/Wraith/backend-go/provenance"
 )
 
 var (

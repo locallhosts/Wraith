@@ -1,9 +1,9 @@
 elasticsearch==8.13.0
 neo4j==5.19.0
-pyyaml==6.0.1
+pyyaml==6.0.3
 faker==24.4.0
 anthropic==0.25.7
-click==8.1.7
+click==8.3.3
 python-dateutil==2.9.0
 
 # Core Sigma translation + the Elasticsearch backend, since that's what

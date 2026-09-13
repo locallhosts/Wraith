@@ -24,15 +24,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourname/wraith/backend-go/api"
-	"github.com/yourname/wraith/backend-go/auth"
-	"github.com/yourname/wraith/backend-go/config"
-	"github.com/yourname/wraith/backend-go/linter"
-	"github.com/yourname/wraith/backend-go/notify"
-	"github.com/yourname/wraith/backend-go/orchestrator"
-	"github.com/yourname/wraith/backend-go/provenance"
-	"github.com/yourname/wraith/backend-go/ratelimit"
-	"github.com/yourname/wraith/backend-go/store"
+	"github.com/locallhosts/Wraith/backend-go/api"
+	"github.com/locallhosts/Wraith/backend-go/auth"
+	"github.com/locallhosts/Wraith/backend-go/config"
+	"github.com/locallhosts/Wraith/backend-go/linter"
+	"github.com/locallhosts/Wraith/backend-go/notify"
+	"github.com/locallhosts/Wraith/backend-go/orchestrator"
+	"github.com/locallhosts/Wraith/backend-go/provenance"
+	"github.com/locallhosts/Wraith/backend-go/ratelimit"
+	"github.com/locallhosts/Wraith/backend-go/store"
 )
 
 func main() {

@@ -25,7 +25,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: wraith-backend
-          image: ghcr.io/yourname/wraith-backend:latest
+          image: ghcr.io/locallhosts/Wraith-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

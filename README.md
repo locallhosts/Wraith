@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: yourname/wraith@v1
+      - uses: locallhosts/Wraith@v1
         with:
           rules-path: rules
           fail-on-warning: 'false'   # set 'true' to also block on missing MITRE tags, undocumented false positives, etc.
@@ -302,7 +302,7 @@ browse the generated attack graph directly in Neo4j Browser
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export GITHUB_TOKEN=ghp_...
-export GITHUB_REPO=yourname/wraith
+export GITHUB_REPO=locallhosts/Wraith
 python run_pipeline.py --rule ../rules/suspicious_powershell_encodedcommand.yml \
   --run-id local-test-2 --es-addr http://localhost:9200 \
   --neo4j-addr bolt://localhost:7687 --open-pr

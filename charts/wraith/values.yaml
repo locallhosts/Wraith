@@ -1,7 +1,7 @@
 replicaCount: 2
 
 image:
-  repository: ghcr.io/yourname/wraith-backend
+  repository: ghcr.io/locallhosts/Wraith-backend
   tag: latest
   pullPolicy: IfNotPresent
 

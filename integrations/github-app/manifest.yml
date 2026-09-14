@@ -1,0 +1,14 @@
+name: wraith-detection-engineering
+url: https://github.com/locallhosts/Wraith
+hook_attributes:
+  url: https://YOUR-WRAITH-HOST.example.com/webhooks/github
+  active: true
+redirect_url: https://YOUR-WRAITH-HOST.example.com/github/install/callback
+public: false
+default_permissions:
+  contents: read
+  metadata: read
+  pull_requests: write
+default_events:
+  - pull_request
+  - push

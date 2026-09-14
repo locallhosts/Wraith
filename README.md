@@ -382,6 +382,47 @@ for.
   ephemeral indexes) is a well-scoped, high-value open contribution — see
   `CONTRIBUTING.md`.
 
+
+## Documentation
+
+The `docs/` directory contains the engineering documentation behind the platform.
+
+| Document | Covers |
+|---|---|
+| `ARCHITECTURE.md` | Components, data flow, Go/Python boundary, validation infrastructure |
+| `DETECTION_ENGINEERING.md` | Detection lifecycle, attack testing, baseline testing, robustness, SIEM translation |
+| `THREAT_MODEL.md` | Assets, trust boundaries, threats, assumptions, and mitigations |
+| `SECURITY_MODEL.md` | Authentication, RBAC, audit, rate limiting, provenance, deployment controls |
+| `VALIDATION.md` | Validation contract, evidence levels, backend scope, performance testing |
+| `DESIGN_DECISIONS.md` | Major architectural decisions and trade-offs |
+| `OPERATIONS.md` | Docker, Kubernetes, Terraform, secrets, observability, scaling |
+| `API.md` | Current HTTP API surface and authorization model |
+| `CI_SECURITY.md` | Security scanning, CI permissions, dependency exceptions, supply-chain controls |
+| `PROVENANCE.md` | Ed25519 attestations, content binding, deployment verification |
+| `TESTING.md` | Test strategy and verified engineering evidence |
+| `USING_AS_ACTION.md` | Zero-setup reusable GitHub Action |
+| `FEATURES.md` | Advanced detection-engineering features and their verification boundaries |
+| `DEPLOYMENT.md` | Persistent deployment walkthrough |
+| `ENTERPRISE.md` | Enterprise deployment and security details |
+
+## Advanced detection-engineering features
+
+The repository also includes the following implemented feature modules; their current verification scope is documented in `docs/FEATURES.md`.
+
+| Feature | Implementation | Current evidence |
+|---|---|---|
+| Mutation testing | `engine-python/mutation_testing.py`, `mutation_runner.py` | 8/8 advanced-feature tests |
+| Rule diff/regression report | `engine-python/rule_diff.py` | 8/8 advanced-feature tests |
+| ATT&CK Navigator export | `engine-python/attack_navigator.py` | 8/8 advanced-feature tests |
+| Schema drift detection | `engine-python/schema_drift.py` | 8/8 advanced-feature tests |
+| Multi-rule correlation | `engine-python/correlation.py` | 8/8 advanced-feature tests |
+| Detection Quality Score | `engine-python/quality_score.py` | 8/8 advanced-feature tests |
+| Atomic Red Team import | `engine-python/atomic_red_team.py` | 8/8 advanced-feature tests; import-only by design |
+| Compliance mapping | `engine-python/compliance_map.py` | 8/8 advanced-feature tests; organization-owned mappings |
+| GitHub App foundation | `integrations/github-app/` | manifest/documentation foundation; production hosting still required |
+
+The hosted playground remains intentionally deferred until the core engineering surface is finished.
+
 ## Verification status
 
 Genuinely executed during development (not just read over), most recently:
@@ -393,6 +434,7 @@ Genuinely executed during development (not just read over), most recently:
 | `backend-go/linter` (Sigma validation, including `--strict` mode) | Compiled + 4/4 unit tests passed |
 | `engine-python/attack_simulator.py` | 3/3 unit tests passed |
 | `engine-python/robustness_fuzzer.py` | 5/5 unit tests passed, including proof that a naive rule scores measurably worse than a well-written one |
+| `tests/test_advanced_features.py` | 8/8 tests passed for mutation testing, rule diffing, ATT&CK Navigator export, schema drift, correlation, quality scoring, Atomic Red Team import, and compliance mapping |
 | `engine-python/sigma_translate.py` (6 SIEM backends) | 5/5 unit tests passed; all 6 backends independently verified producing correct native output against the real sample rule (caught and fixed one real bug — a wrong class name for the CrowdStrike backend — during this verification) |
 | `tools/logblast` (C, throughput testing) | Compiled clean with `-Wall -Wextra`, zero warnings; end-to-end tested against a protocol-validating mock endpoint at up to 2,000,000 events with zero malformed documents and zero HTTP errors (~229K events/sec on a single-vCPU test machine); one real bug found and fixed (`curl`'s `Expect: 100-continue` header causing a deadlock against naive HTTP servers) |
 | `action.yml` (reusable GitHub Action) | Composite action YAML validated; backing Go CLI logic (`--strict`, GitHub annotation output) covered by the linter test suite above |

@@ -38,6 +38,9 @@ import robustness_check
 import sigma_to_es
 import soar_playbook_generator
 import validate as validate_mod
+import mutation_testing
+import mutation_runner
+import quality_score
 
 
 def main():
@@ -52,6 +55,7 @@ def main():
     parser.add_argument("--baseline-events-per-hour", type=int, default=500)
     parser.add_argument("--perf-reject-threshold-pct", type=float, default=5.0)
     parser.add_argument("--robustness-variants", type=int, default=40)
+    parser.add_argument("--mutation-testing", action="store_true", help="Generate Sigma mutants for validation corpus testing")
     parser.add_argument("--open-pr", action="store_true")
     parser.add_argument("--output-dir", default="engine-python/output")
     args = parser.parse_args()
@@ -121,7 +125,22 @@ def main():
         else:
             report["stages"]["robustness"] = {"status": "skipped", "reason": "no mappable MITRE technique tagged on rule"}
 
-    # --- Stage 6: SOAR playbook (only if the rule passed) ---
+    # --- Stage 6: mutation corpus generation (optional) ---
+    # Mutants are generated here but are not silently executed against production
+    # infrastructure. Each mutant must be run through an isolated validation
+    # corpus and marked killed/alive by the caller.
+    if args.mutation_testing:
+        print("[run_pipeline] running mutation testing against the isolated validation corpus")
+        mutation_result = mutation_runner.run(args.es_addr, args.run_id, rule_yaml)
+        mutation_path = out_dir / "mutation_results.json"
+        mutation_path.write_text(json.dumps(mutation_result, indent=2))
+        report["stages"]["mutation_testing"] = mutation_result
+        report["stages"]["mutation_testing"]["path"] = str(mutation_path)
+
+    # --- Stage 7: explainable quality score ---
+    report["stages"]["quality_score"] = quality_score.score(report)
+
+    # --- Stage 8: SOAR playbook (only if the rule passed) ---
     if verdict["passed"]:
         print("[run_pipeline] rule passed — drafting SOAR playbook")
         try:

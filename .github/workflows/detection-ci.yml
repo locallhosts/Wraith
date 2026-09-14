@@ -115,7 +115,8 @@ jobs:
             --run-id "$RUN_ID" \
             --es-addr http://localhost:9200 \
             --neo4j-addr bolt://localhost:7687 \
-            --open-pr
+            --open-pr \
+            --mutation-testing
 
       - uses: actions/setup-go@v5
         if: always()

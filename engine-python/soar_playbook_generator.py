@@ -2,13 +2,23 @@
 soar_playbook_generator.py
 
 When a new detection rule passes validation, this drafts a Python SOAR
-response playbook (e.g. "isolate host, revoke tokens, notify on-call") by
-calling the real Anthropic Messages API, then opens a real GitHub pull
-request containing the draft for a human analyst to review and approve.
+response playbook (e.g. "isolate host, revoke tokens, notify on-call")
+using a selectable LLM provider (Anthropic or OpenAI), then optionally
+opens a real GitHub pull request containing the draft for a human analyst
+to review and approve.
 
 Nothing here auto-executes on production systems — the whole point is a
 human-in-the-loop PR, not an auto-responding bot.
+
+Provider selection:
+
+    WRAITH_LLM_PROVIDER=anthropic
+    WRAITH_LLM_PROVIDER=openai
+
+Both providers may be configured at the same time, but only the explicitly
+selected provider is used for a given run.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +31,8 @@ from pathlib import Path
 import requests
 import yaml
 from anthropic import Anthropic
+from openai import OpenAI
+
 
 SOAR_SYSTEM_PROMPT = """You are a SOC automation engineer drafting a SOAR \
 (Security Orchestration, Automation and Response) playbook in Python for a \
@@ -53,8 +65,11 @@ or impact related, regardless of severity.
 
 
 def load_rule_context(rule_path: str) -> dict:
-    with open(rule_path) as f:
+    """Load the relevant Sigma rule fields used for SOAR generation."""
+
+    with open(rule_path, encoding="utf-8") as f:
         rule = yaml.safe_load(f)
+
     return {
         "title": rule.get("title", ""),
         "description": rule.get("description", ""),
@@ -64,10 +79,10 @@ def load_rule_context(rule_path: str) -> dict:
     }
 
 
-def draft_playbook(rule_context: dict, api_key: str | None = None) -> str:
-    client = Anthropic(api_key=api_key or os.environ.get("ANTHROPIC_API_KEY"))
+def _build_user_prompt(rule_context: dict) -> str:
+    """Build the provider-independent prompt from Sigma rule context."""
 
-    user_prompt = (
+    return (
         f"Sigma rule title: {rule_context['title']}\n"
         f"Description: {rule_context['description']}\n"
         f"Level: {rule_context['level']}\n"
@@ -76,20 +91,175 @@ def draft_playbook(rule_context: dict, api_key: str | None = None) -> str:
         "Draft the respond() function now."
     )
 
+
+def _draft_with_anthropic(
+    user_prompt: str,
+    api_key: str,
+    model: str,
+) -> str:
+    """Generate a SOAR playbook using Anthropic."""
+
+    client = Anthropic(api_key=api_key)
+
     message = client.messages.create(
-        model="claude-sonnet-4-6",
+        model=model,
         max_tokens=1200,
         system=SOAR_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_prompt}],
+        messages=[
+            {
+                "role": "user",
+                "content": user_prompt,
+            }
+        ],
     )
 
-    text_parts = [block.text for block in message.content if block.type == "text"]
-    return "\n".join(text_parts).strip()
+    text_parts = [
+        block.text
+        for block in message.content
+        if block.type == "text"
+    ]
+
+    result = "\n".join(text_parts).strip()
+
+    if not result:
+        raise RuntimeError(
+            "Anthropic returned an empty SOAR playbook response"
+        )
+
+    return result
 
 
-def write_playbook_file(run_id: str, rule_id: str, code: str, output_dir: Path) -> Path:
+def _draft_with_openai(
+    user_prompt: str,
+    api_key: str,
+    model: str,
+) -> str:
+    """Generate a SOAR playbook using OpenAI."""
+
+    client = OpenAI(api_key=api_key)
+
+    response = client.responses.create(
+        model=model,
+        instructions=SOAR_SYSTEM_PROMPT,
+        input=user_prompt,
+    )
+
+    result = response.output_text.strip()
+
+    if not result:
+        raise RuntimeError(
+            "OpenAI returned an empty SOAR playbook response"
+        )
+
+    return result
+
+
+def draft_playbook(
+    rule_context: dict,
+    api_key: str | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+) -> str:
+    """
+    Generate a SOAR playbook using the explicitly selected LLM provider.
+
+    Provider precedence:
+        1. --provider argument
+        2. WRAITH_LLM_PROVIDER
+        3. anthropic
+
+    API-key precedence:
+        1. api_key argument
+        2. provider-specific environment variable
+    """
+
+    selected_provider = (
+        provider
+        or os.environ.get("WRAITH_LLM_PROVIDER", "anthropic")
+    ).strip().lower()
+
+    if selected_provider not in {"anthropic", "openai"}:
+        raise ValueError(
+            f"Unsupported WRAITH_LLM_PROVIDER: {selected_provider!r}. "
+            "Expected 'anthropic' or 'openai'."
+        )
+
+    user_prompt = _build_user_prompt(rule_context)
+
+    if selected_provider == "anthropic":
+        selected_key = (
+            api_key
+            or os.environ.get("ANTHROPIC_API_KEY")
+        )
+
+        if not selected_key:
+            raise RuntimeError(
+                "WRAITH_LLM_PROVIDER=anthropic but "
+                "ANTHROPIC_API_KEY is not configured"
+            )
+
+        selected_model = (
+            model
+            or os.environ.get("WRAITH_LLM_MODEL")
+            or "claude-sonnet-4-6"
+        )
+
+        print(
+            f"[soar_playbook_generator] LLM provider: anthropic"
+        )
+        print(
+            f"[soar_playbook_generator] LLM model: {selected_model}"
+        )
+
+        return _draft_with_anthropic(
+            user_prompt=user_prompt,
+            api_key=selected_key,
+            model=selected_model,
+        )
+
+    selected_key = (
+        api_key
+        or os.environ.get("OPENAI_API_KEY")
+    )
+
+    if not selected_key:
+        raise RuntimeError(
+            "WRAITH_LLM_PROVIDER=openai but "
+            "OPENAI_API_KEY is not configured"
+        )
+
+    selected_model = (
+        model
+        or os.environ.get("WRAITH_LLM_MODEL")
+        or "gpt-5.5"
+    )
+
+    print(
+        f"[soar_playbook_generator] LLM provider: openai"
+    )
+    print(
+        f"[soar_playbook_generator] LLM model: {selected_model}"
+    )
+
+    return _draft_with_openai(
+        user_prompt=user_prompt,
+        api_key=selected_key,
+        model=selected_model,
+    )
+
+
+def write_playbook_file(
+    run_id: str,
+    rule_id: str,
+    code: str,
+    output_dir: Path,
+) -> Path:
+    """Write the generated playbook as a human-reviewable draft."""
+
     output_dir.mkdir(parents=True, exist_ok=True)
+
     path = output_dir / f"playbook_{rule_id}.py"
+
     header = (
         f'"""\n'
         f"Auto-drafted SOAR playbook — WRAITH pipeline run {run_id}\n"
@@ -98,86 +268,218 @@ def write_playbook_file(run_id: str, rule_id: str, code: str, output_dir: Path) 
         f"before it is merged and wired into the SOAR platform.\n"
         f'"""\n\n'
     )
-    path.write_text(header + code + "\n")
+
+    path.write_text(
+        header + code + "\n",
+        encoding="utf-8",
+    )
+
     return path
 
 
-def open_github_pr(repo: str, base_branch: str, run_id: str, rule_id: str,
-                    playbook_path: Path, github_token: str) -> str:
-    """Creates a branch, commits the playbook file via the GitHub Contents
-    API, and opens a real pull request against `base_branch`. Returns the
-    PR URL."""
+def open_github_pr(
+    repo: str,
+    base_branch: str,
+    run_id: str,
+    rule_id: str,
+    playbook_path: Path,
+    github_token: str,
+) -> str:
+    """
+    Create a branch, commit the playbook through the GitHub Contents API,
+    and open a real pull request against base_branch.
+
+    Returns the PR URL.
+    """
+
     api = f"https://api.github.com/repos/{repo}"
+
     headers = {
         "Authorization": f"Bearer {github_token}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    base_ref = requests.get(f"{api}/git/ref/heads/{base_branch}", headers=headers)
+    base_ref = requests.get(
+        f"{api}/git/ref/heads/{base_branch}",
+        headers=headers,
+        timeout=30,
+    )
     base_ref.raise_for_status()
+
     base_sha = base_ref.json()["object"]["sha"]
 
-    branch_name = f"wraith/soar-playbook-{rule_id[:8]}-{run_id[:8]}"
+    branch_name = (
+        f"wraith/soar-playbook-"
+        f"{rule_id[:8]}-"
+        f"{run_id[:8]}"
+    )
+
     requests.post(
-        f"{api}/git/refs", headers=headers,
-        json={"ref": f"refs/heads/{branch_name}", "sha": base_sha},
+        f"{api}/git/refs",
+        headers=headers,
+        json={
+            "ref": f"refs/heads/{branch_name}",
+            "sha": base_sha,
+        },
+        timeout=30,
     ).raise_for_status()
 
-    content_b64 = base64.b64encode(playbook_path.read_bytes()).decode()
+    content_b64 = base64.b64encode(
+        playbook_path.read_bytes()
+    ).decode()
+
     remote_path = f"soar/playbooks/{playbook_path.name}"
+
     requests.put(
-        f"{api}/contents/{remote_path}", headers=headers,
+        f"{api}/contents/{remote_path}",
+        headers=headers,
         json={
             "message": f"Draft SOAR playbook for rule {rule_id}",
             "content": content_b64,
             "branch": branch_name,
         },
+        timeout=30,
     ).raise_for_status()
 
     pr_resp = requests.post(
-        f"{api}/pulls", headers=headers,
+        f"{api}/pulls",
+        headers=headers,
         json={
-            "title": f"[WRAITH] Draft SOAR playbook for rule {rule_id}",
+            "title": (
+                f"[WRAITH] Draft SOAR playbook "
+                f"for rule {rule_id}"
+            ),
             "head": branch_name,
             "base": base_branch,
             "body": (
-                f"Auto-generated by the WRAITH detection pipeline for run `{run_id}`.\n\n"
-                f"This rule **passed** attack-detection and false-positive testing "
-                f"and now has a draft incident-response playbook attached.\n\n"
-                "**A SOC analyst must review this before merge.** Nothing in this "
-                "playbook executes automatically until approved and wired into "
-                "the SOAR platform."
+                f"Auto-generated by the WRAITH detection pipeline "
+                f"for run `{run_id}`.\n\n"
+                f"This rule **passed** attack-detection and "
+                f"false-positive testing and now has a draft "
+                f"incident-response playbook attached.\n\n"
+                "**A SOC analyst must review this before merge.** "
+                "Nothing in this playbook executes automatically "
+                "until approved and wired into the SOAR platform."
             ),
         },
+        timeout=30,
     )
+
     pr_resp.raise_for_status()
+
     return pr_resp.json()["html_url"]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Draft a SOAR playbook and open a review PR")
-    parser.add_argument("--rule", required=True)
-    parser.add_argument("--rule-id", required=True)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--output-dir", default="engine-python/output")
-    parser.add_argument("--open-pr", action="store_true", help="also open a GitHub PR (requires GITHUB_TOKEN, GITHUB_REPO)")
+def main() -> None:
+    """CLI entry point."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Draft a SOAR playbook using Anthropic or OpenAI "
+            "and optionally open a review PR"
+        )
+    )
+
+    parser.add_argument(
+        "--rule",
+        required=True,
+        help="Path to the Sigma rule",
+    )
+
+    parser.add_argument(
+        "--rule-id",
+        required=True,
+        help="Sigma rule ID",
+    )
+
+    parser.add_argument(
+        "--run-id",
+        required=True,
+        help="Wraith pipeline run ID",
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        default="engine-python/output",
+        help="Base output directory",
+    )
+
+    parser.add_argument(
+        "--provider",
+        choices=("anthropic", "openai"),
+        default=None,
+        help=(
+            "LLM provider. Overrides WRAITH_LLM_PROVIDER."
+        ),
+    )
+
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "LLM model. Overrides WRAITH_LLM_MODEL."
+        ),
+    )
+
+    parser.add_argument(
+        "--open-pr",
+        action="store_true",
+        help=(
+            "Also open a GitHub PR "
+            "(requires GITHUB_TOKEN and GITHUB_REPO)"
+        ),
+    )
+
     args = parser.parse_args()
 
     ctx = load_rule_context(args.rule)
-    code = draft_playbook(ctx)
-    path = write_playbook_file(args.run_id, args.rule_id, code, Path(args.output_dir) / args.run_id)
-    print(f"[soar_playbook_generator] wrote {path}")
+
+    code = draft_playbook(
+        ctx,
+        provider=args.provider,
+        model=args.model,
+    )
+
+    path = write_playbook_file(
+        args.run_id,
+        args.rule_id,
+        code,
+        Path(args.output_dir) / args.run_id,
+    )
+
+    print(
+        f"[soar_playbook_generator] wrote {path}"
+    )
 
     if args.open_pr:
         token = os.environ.get("GITHUB_TOKEN")
         repo = os.environ.get("GITHUB_REPO")
-        base = os.environ.get("GITHUB_BASE_BRANCH", "main")
+        base = os.environ.get(
+            "GITHUB_BASE_BRANCH",
+            "main",
+        )
+
         if not token or not repo:
-            print("GITHUB_TOKEN / GITHUB_REPO not set, skipping PR creation", file=sys.stderr)
+            print(
+                "GITHUB_TOKEN / GITHUB_REPO not set, "
+                "skipping PR creation",
+                file=sys.stderr,
+            )
             return
-        url = open_github_pr(repo, base, args.run_id, args.rule_id, path, token)
-        print(f"[soar_playbook_generator] opened PR: {url}")
+
+        url = open_github_pr(
+            repo,
+            base,
+            args.run_id,
+            args.rule_id,
+            path,
+            token,
+        )
+
+        print(
+            f"[soar_playbook_generator] opened PR: {url}"
+        )
 
 
 if __name__ == "__main__":

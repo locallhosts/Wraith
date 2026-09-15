@@ -7,8 +7,6 @@ services:
       - POSTGRES_USER=wraith
       - POSTGRES_PASSWORD=${WRAITH_POSTGRES_PASSWORD:-wraith-dev-password-change-me}
       - POSTGRES_DB=wraith
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -51,7 +49,8 @@ services:
 
   backend:
     build:
-      context: ./backend-go
+      context: .
+      dockerfile: backend-go/Dockerfile
     environment:
       - WRAITH_ES_ADDR=http://elasticsearch:9200
       - WRAITH_NEO4J_ADDR=bolt://neo4j:7687
@@ -67,7 +66,7 @@ services:
       - GITHUB_REPO=${GITHUB_REPO:-}
     volumes:
       - ./rules:/app/rules:ro
-      - ./engine-python:/app/engine-python:ro
+      - ./engine-python:/app/engine-python
       - pipeline_output:/app/engine-python/output
     ports:
       - "8080:8080"

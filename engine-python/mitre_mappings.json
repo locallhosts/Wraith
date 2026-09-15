@@ -12,6 +12,7 @@
   "T1059.001": {
     "name": "PowerShell",
     "tactic": "execution",
+    "platforms": ["windows"],
     "atomic_test_guids": ["9ddcbaef-9a3c-4834-9f68-d5e21bb4e630"],
     "event": {
       "event_type": "process_creation",

@@ -18,6 +18,11 @@ export interface RunStatus {
   updated_at: string;
 }
 
+export interface HealthStatus {
+  status?: string;
+  [key: string]: unknown;
+}
+
 export function getApiKey(): string {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(API_KEY_STORAGE_KEY) || "";
@@ -25,7 +30,8 @@ export function getApiKey(): string {
 
 export function setApiKey(key: string) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  if (key) window.localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  else window.localStorage.removeItem(API_KEY_STORAGE_KEY);
 }
 
 function authHeaders(): HeadersInit {
@@ -42,10 +48,12 @@ export const fetcher = (path: string) =>
     return res.json();
   });
 
-async function post(path: string): Promise<{ ok: boolean; data: any }> {
+async function post(path: string, body?: unknown): Promise<{ ok: boolean; data: any }> {
+  const headers: HeadersInit = { ...authHeaders(), "Content-Type": "application/json" };
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: authHeaders(),
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   return { ok: res.ok, data };
@@ -72,6 +80,8 @@ export interface StageValidate {
 
 export interface StageAttackSimulation {
   status?: string;
+  target_os?: string;
+  target_os_source?: string;
   rule_tagged_techniques?: string[];
   simulated_chain?: string[];
   simulated_user?: string;
@@ -96,20 +106,34 @@ export interface StageSoarPlaybook {
   error?: string;
 }
 
+export interface StageQualityScore {
+  available_weight?: number;
+  max?: number;
+  score?: number;
+  rating?: string;
+  components?: Record<string, number>;
+}
+
 export interface RunReport {
   run_id: string;
   rule_path: string;
   rule_id: string;
   passed: boolean;
   duration_seconds: number;
+  environment?: { target_os?: string; target_os_source?: string };
   stages: {
     translate?: { status?: string; query_dsl_path?: string };
     baseline?: { status?: string; events_indexed?: number };
     attack_simulation?: StageAttackSimulation;
     validate?: StageValidate;
     robustness?: StageRobustness;
+    quality_score?: StageQualityScore;
     soar_playbook?: StageSoarPlaybook;
   };
+}
+
+export interface AuditEvent {
+  [key: string]: unknown;
 }
 
 export interface Attestation {
@@ -138,13 +162,30 @@ export async function fetchAttestation(id: string): Promise<Attestation> {
   return fetcher(`/runs/${id}/attestation`);
 }
 
+export async function fetchAudit(): Promise<AuditEvent[]> {
+  return fetcher("/audit");
+}
+
+export async function lintRules(body: unknown): Promise<unknown> {
+  const result = await post("/lint", body);
+  if (!result.ok) throw new Error(result.data?.error || "Lint request failed");
+  return result.data;
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  return fetcher("/healthz");
+}
+
+export async function fetchReady(): Promise<HealthStatus> {
+  return fetcher("/readyz");
+}
+
 /** Requires an API key with role >= lead. */
 export async function approveRun(runId: string) {
   return post(`/runs/${runId}/approve`);
 }
 
-/** Requires an API key with role >= lead, plus the run must already be
- * approved and have a valid provenance attestation on disk. */
+/** Requires an API key with role >= lead, plus the run must already be approved and have a valid provenance attestation on disk. */
 export async function deployRun(runId: string) {
   return post(`/runs/${runId}/deploy`);
 }

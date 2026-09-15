@@ -4,17 +4,9 @@ import { useMemo, useState } from "react";
 import { fetcher, RunStatus } from "../lib/api";
 import ApiKeyBar from "../components/ApiKeyBar";
 import PlatformNav from "../components/PlatformNav";
+import ThemeToggle from "../components/ThemeToggle";
 
-const STAGE_LABEL: Record<string, string> = {
-  lint: "Linting",
-  provision: "Provisioning",
-  simulate: "Simulation",
-  validate: "Validation",
-  soar: "SOAR",
-  done: "Complete",
-  failed: "Failed",
-};
-
+const STAGE_LABEL: Record<string, string> = { lint: "Linting", provision: "Provisioning", simulate: "Simulation", validate: "Validation", soar: "SOAR", done: "Complete", failed: "Failed" };
 const platformAreas = [
   { title: "Detection Engineering", description: "Rule analysis, Sigma translation, mutation testing, robustness, quality and detection lifecycle controls.", status: "Core workflow" },
   { title: "Threat Intelligence", description: "MITRE ATT&CK technique mapping and multi-stage attack-chain evidence from the validation engine.", status: "Core workflow" },
@@ -23,7 +15,6 @@ const platformAreas = [
   { title: "Automation", description: "GitHub webhooks, CI/CD integration and SOAR playbook generation connect detection engineering to operations.", status: "Implemented / provider dependent" },
   { title: "Governance", description: "Audit, provenance, cryptographic attestation, lead approval and deployment gates protect the promotion path.", status: "Implemented" },
 ];
-
 const plannedAreas = [
   ["#planned-rules", "Rules workspace", "A dedicated browser for detection content and rule lifecycle management."],
   ["#planned-translation", "Translation workspace", "Side-by-side Sigma and backend query inspection."],
@@ -32,104 +23,25 @@ const plannedAreas = [
   ["#planned-quality", "Quality workspace", "Quality scoring across validation dimensions."],
   ["#planned-attack", "ATT&CK workspace", "Technique coverage and Neo4j-backed attack-chain exploration."],
 ];
-
-function StatusBadge({ run }: { run: RunStatus }) {
-  const terminal = run.stage === "done" || run.stage === "failed";
-  const failed = run.stage === "failed" || run.passed === false;
-  const tone = terminal
-    ? failed ? "border-rose-900 bg-rose-950/60 text-rose-300" : "border-emerald-900 bg-emerald-950/60 text-emerald-300"
-    : "border-amber-900 bg-amber-950/60 text-amber-300";
-  return <span className={`rounded border px-2 py-1 text-[11px] font-medium ${tone}`}>{STAGE_LABEL[run.stage] ?? run.stage}</span>;
-}
-
-function Metric({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
-  return <div className="rounded-lg border border-zinc-800 bg-[#11161d] p-4"><p className="text-[11px] uppercase tracking-[0.16em] text-zinc-600">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">{value}</p>{detail && <p className="mt-1 text-xs text-zinc-600">{detail}</p>}</div>;
-}
-
-function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
-  return <div><p className="text-[10px] uppercase tracking-[0.18em] text-zinc-700">{eyebrow}</p><h2 className="mt-1 text-sm font-semibold text-zinc-200">{title}</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-600">{description}</p></div>;
-}
-
+function StatusBadge({ run }: { run: RunStatus }) { const terminal = run.stage === "done" || run.stage === "failed"; const failed = run.stage === "failed" || run.passed === false; const tone = terminal ? failed ? "border-rose-900 bg-rose-950/60 text-rose-300" : "border-emerald-900 bg-emerald-950/60 text-emerald-300" : "border-amber-900 bg-amber-950/60 text-amber-300"; return <span className={`rounded border px-2 py-1 text-[11px] font-medium ${tone}`}>{STAGE_LABEL[run.stage] ?? run.stage}</span>; }
+function Metric({ label, value, detail }: { label: string; value: string | number; detail?: string }) { return <div className="rounded-lg border border-zinc-800 bg-[#11161d] p-4"><p className="text-[11px] uppercase tracking-[0.16em] text-zinc-600">{label}</p><p className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">{value}</p>{detail && <p className="mt-1 text-xs text-zinc-600">{detail}</p>}</div>; }
+function SectionHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) { return <div><p className="text-[10px] uppercase tracking-[0.18em] text-zinc-700">{eyebrow}</p><h2 className="mt-1 text-sm font-semibold text-zinc-200">{title}</h2><p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-600">{description}</p></div>; }
 export default function Home() {
   const { data: runs, error, isLoading } = useSWR<RunStatus[]>("/runs", fetcher, { refreshInterval: 4000 });
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-
-  const filtered = useMemo(() => {
-    if (!runs) return [];
-    const q = query.trim().toLowerCase();
-    return runs.filter((run) => {
-      const matchesQuery = !q || [run.run_id, run.rule_path, run.rule_title, run.repo, run.rule_id].some((value) => value?.toLowerCase().includes(q));
-      const matchesStatus = status === "all" || (status === "passed" && run.stage === "done" && run.passed === true) || (status === "failed" && (run.stage === "failed" || run.passed === false)) || (status === "active" && run.stage !== "done" && run.stage !== "failed");
-      return matchesQuery && matchesStatus;
-    });
-  }, [runs, query, status]);
-
-  const total = runs?.length ?? 0;
-  const passed = runs?.filter((r) => r.stage === "done" && r.passed === true).length ?? 0;
-  const failed = runs?.filter((r) => r.stage === "failed" || r.passed === false).length ?? 0;
-  const active = total - passed - failed;
-
-  return (
-    <main className="min-h-screen bg-[#0a0e13] text-zinc-200">
-      <header className="border-b border-zinc-800 bg-[#0d1117]/95 px-6 py-5 lg:px-10">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <div className="flex items-center gap-3"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]" /><h1 className="text-xl font-semibold tracking-[0.18em] text-zinc-100">WRAITH</h1><span className="rounded border border-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-widest text-zinc-600">Detection Engineering & Validation</span></div>
-              <p className="mt-2 max-w-3xl text-sm text-zinc-500">Develop, break, measure and validate security detections before they reach production.</p>
-            </div>
-            <div className="flex items-center gap-3"><Link href="/introduction" className="rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200">Introduction</Link><Link href="/playground" className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-900">Playground</Link><ApiKeyBar /></div>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[210px_1fr] lg:px-10">
-        <aside className="hidden lg:block"><PlatformNav /></aside>
-
-        <section className="min-w-0">
-          <section className="rounded-xl border border-zinc-800 bg-[#0f141b] p-6 md:p-8">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Wraith control plane</p>
-            <h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-tight text-zinc-100 md:text-4xl">Build detections. Break them. Measure them. Validate them.</h2>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-500">Wraith treats a detection as an engineering artifact: translate it, simulate the behavior it should catch, test it against benign activity, mutate the attacker representation, score the result, and preserve evidence for review and deployment.</p>
-            <div className="mt-6 flex flex-wrap gap-3"><Link href="/introduction" className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-900 hover:bg-white">Understand Wraith</Link><a href="#runs" className="rounded-md border border-zinc-700 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-900">View validation runs</a></div>
-          </section>
-
-          <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Validation runs" value={total} detail="Persisted pipeline executions" /><Metric label="Passed" value={passed} detail="Completed successfully" /><Metric label="Failed" value={failed} detail="Failed or rejected" /><Metric label="Active" value={active} detail="Currently processing" />
-          </section>
-
-          <section id="runs" className="mt-6 rounded-lg border border-zinc-800 bg-[#0f141b]">
-            <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="text-sm font-semibold text-zinc-200">Validation runs</h2><p className="mt-1 text-xs text-zinc-600">Live pipeline state refreshes every four seconds.</p></div><div className="flex flex-col gap-2 sm:flex-row"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search runs, rules, repositories…" className="w-full rounded-md border border-zinc-800 bg-[#0a0e13] px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-zinc-600 sm:w-64" /><select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border border-zinc-800 bg-[#0a0e13] px-3 py-2 text-xs text-zinc-400 outline-none"><option value="all">All status</option><option value="active">Active</option><option value="passed">Passed</option><option value="failed">Failed</option></select></div></div>
-            {isLoading && <div className="p-8 text-sm text-zinc-600">Loading validation runs…</div>}
-            {error && <div className="m-4 rounded-md border border-rose-900/80 bg-rose-950/30 p-4 text-sm text-rose-300">Couldn&apos;t reach the WRAITH API. Check the API key and backend at NEXT_PUBLIC_API_BASE.</div>}
-            {runs && filtered.length === 0 && <div className="p-10 text-center text-sm text-zinc-600">No runs match the current filters.</div>}
-            <div className="divide-y divide-zinc-800/80">{filtered.map((run) => <Link key={run.run_id} href={`/runs/${run.run_id}`} className="block px-4 py-4 transition hover:bg-zinc-900/40"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate font-mono text-sm text-zinc-200">{run.rule_title || run.rule_path}</span><StatusBadge run={run} /></div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-600"><span className="font-mono">{run.run_id}</span><span>{run.repo} · PR #{run.pr_number}</span><span>{new Date(run.updated_at).toLocaleString()}</span></div></div><span className="text-xs text-zinc-700">Open run →</span></div></Link>)}</div>
-          </section>
-
-          <section id="capabilities" className="mt-8">
-            <SectionHeading eyebrow="Platform map" title="What Wraith contains" description="The application follows the engineering lifecycle and exposes implemented capabilities without pretending unfinished work is complete." />
-            <div className="mt-4 grid gap-3 md:grid-cols-2">{platformAreas.map((area) => <div key={area.title} className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-xs font-semibold text-zinc-200">{area.title}</h3><span className="shrink-0 rounded border border-zinc-800 px-2 py-1 text-[9px] uppercase tracking-wider text-zinc-600">{area.status}</span></div><p className="mt-3 text-xs leading-5 text-zinc-600">{area.description}</p></div>)}</div>
-          </section>
-
-          <section className="mt-8 grid gap-3 md:grid-cols-2">
-            {plannedAreas.map(([id, title, description]) => <div id={id.replace("#", "")} key={id} className="rounded-lg border border-dashed border-zinc-800 bg-[#0d1218] p-5"><div className="flex items-center justify-between gap-3"><h3 className="text-xs font-semibold text-zinc-300">{title}</h3><span className="rounded border border-amber-900/70 bg-amber-950/20 px-2 py-1 text-[9px] uppercase tracking-wider text-amber-400">Planned</span></div><p className="mt-3 text-xs leading-5 text-zinc-600">{description}</p></div>)}
-          </section>
-
-          <section id="system" className="mt-8 rounded-lg border border-zinc-800 bg-[#0f141b] p-5">
-            <SectionHeading eyebrow="Runtime" title="Wraith local stack" description="These are the services used by the current local validation environment. Health state will be wired to real service checks as the system surface is expanded." />
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{["Go API", "PostgreSQL", "Elasticsearch", "Neo4j"].map((service) => <div key={service} className="rounded-md border border-zinc-800 bg-[#0a0e13] px-4 py-3"><p className="text-xs text-zinc-400">{service}</p><p className="mt-1 text-[10px] text-zinc-700">Configured in local stack</p></div>)}</div>
-          </section>
-
-          <section className="mt-8 grid gap-3 md:grid-cols-3">
-            <div id="planned-integrations" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Integrations</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Elasticsearch, Neo4j, GitHub and the Sigma backend ecosystem connect Wraith to real detection workflows.</p></div>
-            <div id="planned-automation" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Automation</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Webhooks, CI/CD and SOAR sit around the validation pipeline; external provider availability is reported separately from detection verdicts.</p></div>
-            <div id="planned-governance" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Governance</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Audit, attestation, approval and deployment gates preserve a traceable path from detection change to production.</p></div>
-          </section>
-
-          <footer className="py-10 text-xs text-zinc-700">WRAITH · Detection engineering, validation, and security automation platform</footer>
-        </section>
-      </div>
-    </main>
-  );
+  const [query, setQuery] = useState(""); const [status, setStatus] = useState("all");
+  const filtered = useMemo(() => { if (!runs) return []; const q = query.trim().toLowerCase(); return runs.filter((run) => { const matchesQuery = !q || [run.run_id, run.rule_path, run.rule_title, run.repo, run.rule_id].some((value) => value?.toLowerCase().includes(q)); const matchesStatus = status === "all" || (status === "passed" && run.stage === "done" && run.passed === true) || (status === "failed" && (run.stage === "failed" || run.passed === false)) || (status === "active" && run.stage !== "done" && run.stage !== "failed"); return matchesQuery && matchesStatus; }); }, [runs, query, status]);
+  const total = runs?.length ?? 0; const passed = runs?.filter((r) => r.stage === "done" && r.passed === true).length ?? 0; const failed = runs?.filter((r) => r.stage === "failed" || r.passed === false).length ?? 0; const active = total - passed - failed;
+  return <main className="min-h-screen bg-[#0a0e13] text-zinc-200">
+    <header className="border-b border-zinc-800 bg-[#0d1117]/95 px-6 py-5 lg:px-10"><div className="mx-auto max-w-7xl"><div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-3"><span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]" /><h1 className="text-xl font-semibold tracking-[0.18em] text-zinc-100">WRAITH</h1><span className="rounded border border-zinc-800 px-2 py-0.5 text-[10px] uppercase tracking-widest text-zinc-600">Detection Engineering & Validation</span></div><p className="mt-2 max-w-3xl text-sm text-zinc-500">Develop, break, measure and validate security detections before they reach production.</p></div><div className="flex flex-wrap items-center justify-end gap-2"><Link href="/introduction" className="rounded-md border border-zinc-800 px-3 py-2 text-xs text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200">Introduction</Link><Link href="/playground" className="rounded-md border border-zinc-700 px-3 py-2 text-xs text-zinc-300 hover:bg-zinc-900">Playground</Link><ThemeToggle /><ApiKeyBar /></div></div></div></header>
+    <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[210px_1fr] lg:px-10"><aside className="hidden lg:block"><PlatformNav /></aside><section className="min-w-0">
+      <section className="rounded-xl border border-zinc-800 bg-[#0f141b] p-6 md:p-8"><p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Wraith control plane</p><h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-tight text-zinc-100 md:text-4xl">Build detections. Break them. Measure them. Validate them.</h2><p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-500">Wraith treats a detection as an engineering artifact: translate it, simulate the behavior it should catch, test it against benign activity, mutate the attacker representation, score the result, and preserve evidence for review and deployment.</p><div className="mt-6 flex flex-wrap gap-3"><Link href="/introduction" className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-900 hover:bg-white">Understand Wraith</Link><a href="#runs" className="rounded-md border border-zinc-700 px-4 py-2 text-xs text-zinc-300 hover:bg-zinc-900">View validation runs</a></div></section>
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Validation runs" value={total} detail="Persisted pipeline executions" /><Metric label="Passed" value={passed} detail="Completed successfully" /><Metric label="Failed" value={failed} detail="Failed or rejected" /><Metric label="Active" value={active} detail="Currently processing" /></section>
+      <section id="runs" className="mt-6 rounded-lg border border-zinc-800 bg-[#0f141b]"><div className="flex flex-col gap-3 border-b border-zinc-800 p-4 md:flex-row md:items-center md:justify-between"><div><h2 className="text-sm font-semibold text-zinc-200">Validation runs</h2><p className="mt-1 text-xs text-zinc-600">Live pipeline state refreshes every four seconds.</p></div><div className="flex flex-col gap-2 sm:flex-row"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search runs, rules, repositories…" className="w-full rounded-md border border-zinc-800 bg-[#0a0e13] px-3 py-2 text-xs text-zinc-300 outline-none placeholder:text-zinc-700 focus:border-zinc-600 sm:w-64" /><select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-md border border-zinc-800 bg-[#0a0e13] px-3 py-2 text-xs text-zinc-400 outline-none"><option value="all">All status</option><option value="active">Active</option><option value="passed">Passed</option><option value="failed">Failed</option></select></div></div>{isLoading && <div className="p-8 text-sm text-zinc-600">Loading validation runs…</div>}{error && <div className="m-4 rounded-md border border-rose-900/80 bg-rose-950/30 p-4 text-sm text-rose-300">Couldn&apos;t reach the WRAITH API. Check the API key and backend at NEXT_PUBLIC_API_BASE.</div>}{runs && filtered.length === 0 && <div className="p-10 text-center text-sm text-zinc-600">No runs match the current filters.</div>}<div className="divide-y divide-zinc-800/80">{filtered.map((run) => <Link key={run.run_id} href={`/runs/${run.run_id}`} className="block px-4 py-4 transition hover:bg-zinc-900/40"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate font-mono text-sm text-zinc-200">{run.rule_title || run.rule_path}</span><StatusBadge run={run} /></div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-600"><span className="font-mono">{run.run_id}</span><span>{run.repo} · PR #{run.pr_number}</span><span>{new Date(run.updated_at).toLocaleString()}</span></div></div><span className="text-xs text-zinc-700">Open run →</span></div></Link>)}</div></section>
+      <section id="capabilities" className="mt-8"><SectionHeading eyebrow="Platform map" title="What Wraith contains" description="The application follows the engineering lifecycle and exposes implemented capabilities without pretending unfinished work is complete." /><div className="mt-4 grid gap-3 md:grid-cols-2">{platformAreas.map((area) => <div key={area.title} className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><div className="flex items-start justify-between gap-3"><h3 className="text-xs font-semibold text-zinc-200">{area.title}</h3><span className="shrink-0 rounded border border-zinc-800 px-2 py-1 text-[9px] uppercase tracking-wider text-zinc-600">{area.status}</span></div><p className="mt-3 text-xs leading-5 text-zinc-600">{area.description}</p></div>)}</div></section>
+      <section className="mt-8 grid gap-3 md:grid-cols-2">{plannedAreas.map(([id, title, description]) => <div id={id.replace("#", "")} key={id} className="rounded-lg border border-dashed border-zinc-800 bg-[#0d1218] p-5"><div className="flex items-center justify-between gap-3"><h3 className="text-xs font-semibold text-zinc-300">{title}</h3><span className="rounded border border-amber-900/70 bg-amber-950/20 px-2 py-1 text-[9px] uppercase tracking-wider text-amber-400">Planned</span></div><p className="mt-3 text-xs leading-5 text-zinc-600">{description}</p></div>)}</section>
+      <section id="system" className="mt-8 rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><SectionHeading eyebrow="Runtime" title="Wraith local stack" description="These are the services used by the current local validation environment. Health state will be wired to real service checks as the system surface is expanded." /><div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{["Go API", "PostgreSQL", "Elasticsearch", "Neo4j"].map((service) => <div key={service} className="rounded-md border border-zinc-800 bg-[#0a0e13] px-4 py-3"><p className="text-xs text-zinc-400">{service}</p><p className="mt-1 text-[10px] text-zinc-700">Configured in local stack</p></div>)}</div></section>
+      <section className="mt-8 grid gap-3 md:grid-cols-3"><div id="planned-integrations" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Integrations</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Elasticsearch, Neo4j, GitHub and the Sigma backend ecosystem connect Wraith to real detection workflows.</p></div><div id="planned-automation" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Automation</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Webhooks, CI/CD and SOAR sit around the validation pipeline; external provider availability is reported separately from detection verdicts.</p></div><div id="planned-governance" className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><h3 className="text-xs font-semibold text-zinc-200">Governance</h3><p className="mt-2 text-xs leading-5 text-zinc-600">Audit, attestation, approval and deployment gates preserve a traceable path from detection change to production.</p></div></section>
+      <footer className="py-10 text-xs text-zinc-700">WRAITH · Detection engineering, validation, and security automation platform</footer>
+    </section></div>
+  </main>;
 }

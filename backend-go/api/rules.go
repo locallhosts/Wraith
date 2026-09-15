@@ -23,16 +23,16 @@ func listRules(s *Server, c *gin.Context) {
 	}
 
 	type ruleSummary struct {
-		Name        string `json:"name"`
-		Path        string `json:"path"`
-		Title       string `json:"title"`
-		ID          string `json:"id"`
-		Status      string `json:"status"`
-		Level       string `json:"level"`
-		Passed      bool   `json:"passed"`
-		IssueCount  int    `json:"issue_count"`
-		ErrorCount  int    `json:"error_count"`
-		WarningCount int   `json:"warning_count"`
+		Name         string `json:"name"`
+		Path         string `json:"path"`
+		Title        string `json:"title"`
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		Level        string `json:"level"`
+		Passed       bool   `json:"passed"`
+		IssueCount   int    `json:"issue_count"`
+		ErrorCount   int    `json:"error_count"`
+		WarningCount int    `json:"warning_count"`
 	}
 
 	out := make([]ruleSummary, 0, len(results))

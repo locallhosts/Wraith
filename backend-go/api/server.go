@@ -144,6 +144,8 @@ func NewRouter(s *Server) *gin.Engine {
 	api.Use(auth.Middleware(s.Store))
 
 	{
+		// --- Operations ---
+
 		api.GET("/runs", auth.RequireRole("viewer"), func(c *gin.Context) {
 			listRuns(s, c)
 		})
@@ -160,13 +162,29 @@ func NewRouter(s *Server) *gin.Engine {
 			getRunAttestation(s, c)
 		})
 
+		// --- Detection Engineering: Rules ---
+
+		api.GET("/rules", auth.RequireRole("viewer"), func(c *gin.Context) {
+			listRules(s, c)
+		})
+
+		api.GET("/rules/:name", auth.RequireRole("viewer"), func(c *gin.Context) {
+			getRule(s, c)
+		})
+
+		// --- Governance ---
+
 		api.GET("/audit", auth.RequireRole("admin"), func(c *gin.Context) {
 			listAudit(s, c)
 		})
 
+		// --- Detection Engineering ---
+
 		api.POST("/lint", auth.RequireRole("analyst"), func(c *gin.Context) {
 			runLint(s, c)
 		})
+
+		// --- Governance: Approval & Deployment ---
 
 		api.POST("/runs/:id/approve", auth.RequireRole("lead"), func(c *gin.Context) {
 			approveRun(s, c)

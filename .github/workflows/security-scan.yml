@@ -47,17 +47,9 @@ jobs:
 
       - uses: github/codeql-action/analyze@v4
 
-  dependency-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
+  # Dependency Review requires GitHub Dependency Graph to be enabled for this repository.
+  # Wraith already performs package-level vulnerability checks with pip-audit and npm audit.
+  # Re-enable this job after Dependency Graph is enabled in repository settings.
 
   pip-audit:
     runs-on: ubuntu-latest
@@ -79,7 +71,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - working-directory: frontend
         run: npm install --package-lock-only && npm audit --audit-level=high

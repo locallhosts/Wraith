@@ -123,7 +123,7 @@ func runServe() {
 			return ""
 		}),
 	}
-	srv.PipelineTrigger = api.DefaultPythonPipelineTrigger(srv, cfg.ESAddr, cfg.Neo4jAddr)
+	srv.PipelineTrigger = api.ManagedPythonPipelineTrigger(srv, cfg.ESAddr, cfg.Neo4jAddr)
 
 	router := api.NewRouter(srv)
 	logger.Info("wraith API listening", "port", cfg.Port, "rules_dir", cfg.RulesDir)
@@ -164,10 +164,6 @@ func runLint() {
 		for _, issue := range r.Issues {
 			fmt.Printf("    (%s) %s: %s\n", issue.Severity, issue.Field, issue.Message)
 			if inGitHubActions {
-				// GitHub Actions workflow command syntax: renders as an
-				// inline annotation directly on the changed lines in the
-				// PR's "Files changed" tab, not just in the raw log.
-				// https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions
 				cmd := "notice"
 				if issue.Severity == "error" || (strict && issue.Severity == "warning") {
 					cmd = "error"
@@ -219,10 +215,6 @@ func runTeardown() {
 	fmt.Println("torn down run", runID)
 }
 
-// runKeygen generates a new ed25519 signing keypair for the provenance
-// system. The private key must go straight into a secrets manager /
-// GitHub Actions secret (WRAITH_SIGNING_PRIVATE_KEY) — it is printed once
-// here and never stored by this tool.
 func runKeygen() {
 	pub, priv, err := provenance.GenerateKeypair()
 	if err != nil {
@@ -237,8 +229,6 @@ func runKeygen() {
 	fmt.Println("WRAITH_SIGNING_PRIVATE_KEY=" + base64.StdEncoding.EncodeToString(priv))
 }
 
-// reportFile mirrors the subset of engine-python/run_pipeline.py's
-// report.json this command needs to build an Attestation.
 type reportFile struct {
 	RunID  string                     `json:"run_id"`
 	RuleID string                     `json:"rule_id"`
@@ -296,7 +286,7 @@ func runAttest() {
 		_ = json.Unmarshal(raw, &attackSim)
 	}
 	if raw, ok := report.Stages["baseline"]; ok {
-		_ = json.Unmarshal(raw, &attackSim) // baseline stage also has events_indexed
+		_ = json.Unmarshal(raw, &attackSim)
 	}
 	if raw, ok := report.Stages["robustness"]; ok {
 		_ = json.Unmarshal(raw, &robustness)

@@ -32,7 +32,7 @@ func ManagedPythonPipelineTrigger(s *Server, configuredES, configuredNeo4j strin
 			}
 			run.Stage = stage
 			run.Passed = passed
-		run.Reason = reason
+			run.Reason = reason
 			_ = s.Store.PutRun(ctx, run)
 		}
 
@@ -148,18 +148,18 @@ func ManagedPythonPipelineTrigger(s *Server, configuredES, configuredNeo4j strin
 func updateStageFromLine(update func(string, *bool, string), line string) {
 	lower := strings.ToLower(line)
 	switch {
-	case strings.Contains(lower, "translat"):
-		update("lint", nil, line)
-	case strings.Contains(lower, "baseline"):
-		update("simulate", nil, line)
-	case strings.Contains(lower, "attack simulation"), strings.Contains(lower, "attack graph"):
-		update("simulate", nil, line)
+	case strings.Contains(lower, "soar"):
+		update("soar", nil, line)
 	case strings.Contains(lower, "validat"):
 		update("validate", nil, line)
 	case strings.Contains(lower, "robust"), strings.Contains(lower, "mutation"), strings.Contains(lower, "quality"):
 		update("validate", nil, line)
-	case strings.Contains(lower, "soar"):
-		update("soar", nil, line)
+	case strings.Contains(lower, "attack simulation"), strings.Contains(lower, "attack graph"):
+		update("simulate", nil, line)
+	case strings.Contains(lower, "baseline"):
+		update("simulate", nil, line)
+	case strings.Contains(lower, "translat"):
+		update("lint", nil, line)
 	}
 }
 

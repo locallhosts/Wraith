@@ -1,8 +1,5 @@
 // Package api exposes the HTTP surface the Next.js dashboard, GitHub
-// Actions runner, and SOC analysts talk to. Every state-changing route is
-// behind API-key auth + role-based access control (backend-go/auth) and
-// writes an audit_log entry (backend-go/store); read-only routes require
-// at least `viewer`.
+// Actions runner, and SOC analysts talk to.
 package api
 
 import (
@@ -13,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,40 +28,15 @@ type Server struct { Store store.Store; WebhookSecret string; RulesDir string; O
 func (s *Server) outputDir() string { if s.OutputDir!="" { return s.OutputDir }; return "engine-python/output" }
 func audit(s store.Store,c *gin.Context,action,resource,detail string){id,_:=auth.GetIdentity(c);role,label:=id.Role,id.Label;if label==""{label="anonymous";role="none"};_ = s.AppendAudit(c.Request.Context(),&store.AuditEntry{Actor:label,ActorRole:role,Action:action,Resource:resource,Detail:detail,IPAddress:c.ClientIP()})}
 func localhostCORSMiddleware()gin.HandlerFunc{return func(c *gin.Context){origin:=c.GetHeader("Origin");if origin=="http://localhost:3000"{c.Header("Access-Control-Allow-Origin",origin);c.Header("Vary","Origin");c.Header("Access-Control-Allow-Methods","GET, POST, OPTIONS");c.Header("Access-Control-Allow-Headers","Authorization, Content-Type")};if c.Request.Method==http.MethodOptions{if origin=="http://localhost:3000"{c.AbortWithStatus(http.StatusNoContent);return};c.AbortWithStatus(http.StatusForbidden);return};c.Next()}}
-
-func NewRouter(s *Server)*gin.Engine{
-	if s.Log==nil{s.Log=slog.Default()};r:=gin.New();r.Use(gin.Recovery(),slogMiddleware(s.Log));r.Use(localhostCORSMiddleware());if s.RateLimit!=nil{r.Use(s.RateLimit)}
-	r.GET("/healthz",func(c *gin.Context){c.JSON(http.StatusOK,gin.H{"status":"ok"})})
-	r.GET("/readyz",func(c *gin.Context){ctx,cancel:=context.WithTimeout(c.Request.Context(),3*time.Second);defer cancel();if err:=s.Store.Ping(ctx);err!=nil{c.JSON(http.StatusServiceUnavailable,gin.H{"ready":false,"error":err.Error()});return};c.JSON(http.StatusOK,gin.H{"ready":true})})
-	r.GET("/metrics",gin.WrapH(promhttp.Handler()));r.POST("/webhook/github",func(c *gin.Context){handleWebhook(s,c)})
-	api:=r.Group("/");api.Use(auth.Middleware(s.Store));{
-		api.GET("/runs",auth.RequireRole("viewer"),func(c *gin.Context){listRuns(s,c)})
-		api.GET("/runs/:id",auth.RequireRole("viewer"),func(c *gin.Context){getRun(s,c)})
-		api.GET("/runs/:id/events",auth.RequireRole("viewer"),func(c *gin.Context){listRunEvents(s,c)})
-		api.GET("/runs/:id/report",auth.RequireRole("viewer"),func(c *gin.Context){getRunReport(s,c)})
-		api.GET("/runs/:id/attestation",auth.RequireRole("viewer"),func(c *gin.Context){getRunAttestation(s,c)})
-		api.GET("/rules",auth.RequireRole("viewer"),func(c *gin.Context){listRules(s,c)})
-		api.GET("/rules/:name",auth.RequireRole("viewer"),func(c *gin.Context){getRule(s,c)})
-		api.GET("/audit",auth.RequireRole("admin"),func(c *gin.Context){listAudit(s,c)})
-		api.POST("/lint",auth.RequireRole("analyst"),func(c *gin.Context){runLint(s,c)})
-		api.POST("/runs/:id/approve",auth.RequireRole("lead"),func(c *gin.Context){approveRun(s,c)})
-		api.POST("/runs/:id/deploy",auth.RequireRole("lead"),func(c *gin.Context){deployRun(s,c)})
-	};return r
-}
-
+func NewRouter(s *Server)*gin.Engine{if s.Log==nil{s.Log=slog.Default()};r:=gin.New();r.Use(gin.Recovery(),slogMiddleware(s.Log));r.Use(localhostCORSMiddleware());if s.RateLimit!=nil{r.Use(s.RateLimit)};r.GET("/healthz",func(c *gin.Context){c.JSON(http.StatusOK,gin.H{"status":"ok"})});r.GET("/readyz",func(c *gin.Context){ctx,cancel:=context.WithTimeout(c.Request.Context(),3*time.Second);defer cancel();if err:=s.Store.Ping(ctx);err!=nil{c.JSON(http.StatusServiceUnavailable,gin.H{"ready":false,"error":err.Error()});return};c.JSON(http.StatusOK,gin.H{"ready":true})});r.GET("/metrics",gin.WrapH(promhttp.Handler()));r.POST("/webhook/github",func(c *gin.Context){handleWebhook(s,c)});api:=r.Group("/");api.Use(auth.Middleware(s.Store));{api.GET("/runs",auth.RequireRole("viewer"),func(c *gin.Context){listRuns(s,c)});api.GET("/runs/:id",auth.RequireRole("viewer"),func(c *gin.Context){getRun(s,c)});api.GET("/runs/:id/events",auth.RequireRole("viewer"),func(c *gin.Context){listRunEvents(s,c)});api.GET("/runs/:id/report",auth.RequireRole("viewer"),func(c *gin.Context){getRunReport(s,c)});api.GET("/runs/:id/attestation",auth.RequireRole("viewer"),func(c *gin.Context){getRunAttestation(s,c)});api.GET("/rules",auth.RequireRole("viewer"),func(c *gin.Context){listRules(s,c)});api.GET("/rules/:name",auth.RequireRole("viewer"),func(c *gin.Context){getRule(s,c)});api.GET("/audit",auth.RequireRole("admin"),func(c *gin.Context){listAudit(s,c)});api.POST("/lint",auth.RequireRole("analyst"),func(c *gin.Context){runLint(s,c)});api.POST("/runs/:id/approve",auth.RequireRole("lead"),func(c *gin.Context){approveRun(s,c)});api.POST("/runs/:id/deploy",auth.RequireRole("lead"),func(c *gin.Context){deployRun(s,c)})};return r}
 func slogMiddleware(log *slog.Logger)gin.HandlerFunc{return func(c *gin.Context){start:=time.Now();c.Next();id,_:=auth.GetIdentity(c);log.Info("request","method",c.Request.Method,"path",c.Request.URL.Path,"status",c.Writer.Status(),"duration_ms",time.Since(start).Milliseconds(),"actor",id.Label,"remote_ip",c.ClientIP())}}
-
 func handleWebhook(s *Server,c *gin.Context){evt,err:=webhook.ParsePullRequestEvent(c.Request,s.WebhookSecret);if err!=nil{metrics.WebhookRejectionsTotal.WithLabelValues("bad_signature").Inc();c.JSON(http.StatusUnauthorized,gin.H{"error":err.Error()});return};if evt.Action!="opened"&&evt.Action!="synchronize"&&evt.Action!="reopened"{metrics.WebhookRejectionsTotal.WithLabelValues("unsupported_action").Inc();c.JSON(http.StatusOK,gin.H{"skipped":true,"action":evt.Action});return};results,err:=linter.LintDir(s.RulesDir);if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};var triggered []string;for _,res:=range results{if !res.Passed(){continue};runID:=safeSlice(evt.PullRequest.Head.Sha,8)+"-"+safeSlice(res.Rule.ID,8);status:=&store.RunStatus{RunID:runID,RulePath:res.Path,RuleID:res.Rule.ID,RuleTitle:res.Rule.Title,Repo:evt.Repository.FullName,PRNumber:evt.Number,Stage:"lint",StartedAt:time.Now()};if err:=s.Store.PutRun(c.Request.Context(),status);err!=nil{continue};_ = s.Store.AppendAudit(c.Request.Context(),&store.AuditEntry{Actor:"github-webhook",ActorRole:"system",Action:"run.triggered",Resource:runID,Detail:fmt.Sprintf("PR #%d on %s",evt.Number,evt.Repository.FullName),IPAddress:c.ClientIP()});if s.PipelineTrigger!=nil{go s.PipelineTrigger(runID,res.Path)};triggered=append(triggered,runID)};c.JSON(http.StatusOK,gin.H{"triggered_runs":triggered,"lint_results":results})}
 func safeSlice(s string,n int)string{if len(s)<=n{return s};return s[:n]}
 func listRuns(s *Server,c *gin.Context){runs,err:=s.Store.ListRuns(c.Request.Context(),200);if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};c.JSON(http.StatusOK,runs)}
 func getRun(s *Server,c *gin.Context){run,err:=s.Store.GetRun(c.Request.Context(),c.Param("id"));if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"run not found"});return};c.JSON(http.StatusOK,run)}
 func listAudit(s *Server,c *gin.Context){entries,err:=s.Store.ListAudit(c.Request.Context(),500);if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};c.JSON(http.StatusOK,entries)}
-
 func getRunReport(s *Server,c *gin.Context){runID:=c.Param("id");data,err:=os.ReadFile(fmt.Sprintf("%s/%s/report.json",s.outputDir(),runID));if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"no report found for this run yet — the pipeline may still be running"});return};var parsed map[string]any;if err:=json.Unmarshal(data,&parsed);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":"report.json is malformed: "+err.Error()});return};c.JSON(http.StatusOK,parsed)}
 func getRunAttestation(s *Server,c *gin.Context){runID:=c.Param("id");data,err:=os.ReadFile(fmt.Sprintf("%s/%s/attestation.json",s.outputDir(),runID));if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"no attestation found for this run"});return};var parsed map[string]any;if err:=json.Unmarshal(data,&parsed);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":"attestation.json is malformed: "+err.Error()});return};c.JSON(http.StatusOK,parsed)}
 func runLint(s *Server,c *gin.Context){results,err:=linter.LintDir(s.RulesDir);if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};audit(s.Store,c,"rules.lint",s.RulesDir,fmt.Sprintf("%d rules linted",len(results)));c.JSON(http.StatusOK,results)}
-
 func approveRun(s *Server,c *gin.Context){runID:=c.Param("id");run,err:=s.Store.GetRun(c.Request.Context(),runID);if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"run not found"});return};if run.Passed==nil||!*run.Passed{c.JSON(http.StatusConflict,gin.H{"error":"only a passing run can be approved"});return};id,_:=auth.GetIdentity(c);now:=time.Now();run.ApprovedBy=id.Label;run.ApprovedAt=&now;if err:=s.Store.PutRun(c.Request.Context(),run);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};_ = s.Store.AppendAudit(c.Request.Context(),&store.AuditEntry{Actor:id.Label,ActorRole:id.Role,Action:"run.approve",Resource:runID,Detail:"human approval recorded",IPAddress:c.ClientIP()});c.JSON(http.StatusOK,run)}
 func deployRun(s *Server,c *gin.Context){runID:=c.Param("id");run,err:=s.Store.GetRun(c.Request.Context(),runID);if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"run not found"});return};if run.Passed==nil||!*run.Passed{c.JSON(http.StatusConflict,gin.H{"error":"run has not passed validation"});return};if run.ApprovedAt==nil{c.JSON(http.StatusConflict,gin.H{"error":"run requires lead approval before deployment"});return};rulePath:=run.RulePath;data,err:=os.ReadFile(rulePath);if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":"rule file unavailable: "+err.Error()});return};if s.TrustedSigningKey==nil{c.JSON(http.StatusServiceUnavailable,gin.H{"error":"trusted signing key is not configured"});return};attPath:=fmt.Sprintf("%s/%s/attestation.json",s.outputDir(),runID);att,err:=provenance.LoadAndVerifyAttestation(attPath,s.TrustedSigningKey,data);if err!=nil{c.JSON(http.StatusConflict,gin.H{"error":"provenance verification failed: "+err.Error()});return};if err:=deploy.Deploy(rulePath,att);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};now:=time.Now();run.DeployedAt=&now;if err:=s.Store.PutRun(c.Request.Context(),run);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};id,_:=auth.GetIdentity(c);_ = s.Store.AppendAudit(c.Request.Context(),&store.AuditEntry{Actor:id.Label,ActorRole:id.Role,Action:"rule.deploy",Resource:runID,Detail:"validated rule deployed",IPAddress:c.ClientIP()});c.JSON(http.StatusOK,run)}
-
-var _ = os.ExecCommand

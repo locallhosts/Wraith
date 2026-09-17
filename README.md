@@ -1,212 +1,343 @@
 # Wraith
 
-**Detection engineering, validation, and security automation platform**
+**Open-source detection engineering and validation platform**
 
 Wraith is a security engineering platform for developing, translating, testing, validating, and operationalizing detection rules across security environments.
 
-The project focuses on the engineering lifecycle around detections rather than treating a detection rule as a static artifact. Wraith provides capabilities for rule analysis, Sigma translation, mutation testing, robustness testing, ATT&CK mapping, schema-drift analysis, correlation, quality scoring, compliance mapping, attack-chain simulation, and security automation.
+It is not a Python-only detection tool. Wraith combines a **Go control plane**, **Python detection and validation engine**, and **TypeScript/Next.js operations interface**, backed by PostgreSQL, Elasticsearch, and Neo4j.
 
 > **Project status:** Active engineering project
-> **Current local verification:** 21/21 Python tests passing under Python 3.13.3
-> **Repository:** https://github.com/locallhosts/Wraith
+>
+> **Current local verification:** 21/21 Python engine tests passing under Python 3.13.3
+>
+> **Primary goal:** make detection quality measurable before a rule reaches production.
 
 ---
 
-## What Wraith Is
+## Why Wraith
 
-Security detections often fail for reasons that are not visible from the rule itself:
+A detection rule can be syntactically valid and still fail in production.
 
-* a rule may be syntactically valid but too fragile
-* small attacker-controlled variations may bypass it
-* a field may disappear after a schema change
-* a detection may translate differently between SIEM backends
-* multiple detections may represent the same behavior without being correlated
-* a rule may have weak ATT&CK coverage
-* compliance mappings may become stale
-* a rule may look sophisticated while providing little measurable coverage
+It may:
 
-Wraith is designed around these problems.
+- depend on one exact representation of attacker behavior
+- break when telemetry schemas change
+- behave differently after translation to another SIEM
+- detect an attack but also match large amounts of benign activity
+- fail against simple adversarial mutations
+- provide incomplete ATT&CK coverage
+- change without a clear provenance record
 
-The platform provides an engineering workflow for:
+Wraith treats a detection as an engineering artifact that should be **analyzed, executed, challenged, measured, and traceable**.
+
+The core workflow is:
 
 ```text
-Detection Authoring
-       │
-       ▼
-Rule Analysis
-       │
-       ├── Sigma Translation
-       ├── Mutation Testing
-       ├── Robustness Analysis
-       ├── ATT&CK Mapping
-       ├── Schema Drift
-       ├── Correlation
-       ├── Quality Scoring
-       └── Compliance Mapping
-       │
-       ▼
-Validation
-       │
-       ├── Unit Tests
-       ├── Detection Tests
-       ├── Adversarial Mutations
-       └── Attack Simulation
-       │
-       ▼
-Operationalization
-       │
-       ├── SIEM Translation
-       ├── CI Security Checks
-       ├── SOAR Integration
-       └── GitHub Integration
+                         Detection Rule
+                              │
+                              ▼
+                       Rule Analysis
+                              │
+                ┌─────────────┼─────────────┐
+                ▼             ▼             ▼
+          Sigma Translation  Diff       Fingerprint
+                │
+                ▼
+          Attack Simulation
+                │
+                ▼
+        Detection Validation
+                │
+        ┌───────┴────────┐
+        ▼                ▼
+   Benign Baseline   Attack Telemetry
+        │                │
+        └───────┬────────┘
+                ▼
+         Mutation Testing
+                │
+                ▼
+       Robustness Analysis
+                │
+                ▼
+        Quality Assessment
+                │
+                ▼
+        Provenance / Audit
+                │
+                ▼
+       Approval / Deployment
 ```
+
+The objective is not to produce a decorative security dashboard. The platform is designed to connect **detection content to executable validation evidence**.
+
+---
+
+# Architecture
+
+Wraith is intentionally split into components with different responsibilities.
+
+```text
+                              WRAITH
+              Detection Engineering & Validation
+
+ ┌───────────────────────┐     ┌────────────────────────┐
+ │   TypeScript / Next.js│     │      Go Control Plane   │
+ │                       │────▶│                        │
+ │ Operations Dashboard  │ API │ Auth / RBAC             │
+ │ Run Visibility        │     │ Orchestration           │
+ │ Rule Workspace        │     │ Persistence / API       │
+ └───────────────────────┘     └────────────┬───────────┘
+                                           │
+                                           ▼
+                              ┌────────────────────────┐
+                              │    Python Engine        │
+                              │                        │
+                              │ Sigma Translation      │
+                              │ Detection Analysis     │
+                              │ Attack Simulation       │
+                              │ Mutation Testing       │
+                              │ Robustness / Quality   │
+                              └────────────┬───────────┘
+                                           │
+                    ┌──────────────────────┼──────────────────────┐
+                    ▼                      ▼                      ▼
+             PostgreSQL             Elasticsearch              Neo4j
+             State / Audit             Telemetry          Attack / ATT&CK
+                    │                      │                      │
+                    └──────────────────────┼──────────────────────┘
+                                           ▼
+                              Validation Evidence
+                                           │
+                                           ▼
+                               Attestation / Gates
+```
+
+### Component responsibilities
+
+| Component | Responsibility |
+| --- | --- |
+| **Go** | API, control plane, authentication/RBAC, orchestration, persistence-facing services, approval/deployment workflow |
+| **Python** | Detection analysis, Sigma translation, simulation, mutation testing, robustness and quality analysis |
+| **TypeScript / Next.js** | Operations dashboard, run visibility, platform navigation, detection-engineering UI |
+| **PostgreSQL** | Persistent run state and audit-oriented data |
+| **Elasticsearch** | Synthetic telemetry and detection-validation queries |
+| **Neo4j** | Attack-chain and relationship data used by the validation pipeline |
+| **GitHub Actions** | CI/CD and security automation |
+
+This separation allows the detection engine to evolve independently from the control plane and user interface.
+
+---
+
+# Detection Engineering Lifecycle
+
+Wraith is organized around a repeatable detection-engineering lifecycle:
+
+```text
+Author
+  ↓
+Analyze
+  ↓
+Translate
+  ↓
+Simulate
+  ↓
+Validate
+  ↓
+Mutate
+  ↓
+Measure
+  ↓
+Attest
+  ↓
+Approve
+  ↓
+Deploy
+```
+
+Each stage produces evidence or an explicit result rather than assuming that a successful previous stage proves downstream effectiveness.
 
 ---
 
 # Core Capabilities
 
-## Detection Engineering
+## Detection Analysis
 
-Wraith provides functionality for analyzing and validating detection rules before they are deployed into production environments.
+Wraith parses and analyzes detection content and exposes properties that can be used by the validation pipeline.
 
-Capabilities include:
+Current detection-engineering functionality includes:
 
-* detection rule parsing
-* rule comparison
-* rule fingerprinting
-* rule-diff analysis
-* deterministic mutation generation
-* mutation scoring
-* robustness testing
-* schema-drift analysis
-* event correlation
-* quality scoring
-* ATT&CK technique extraction
-* attack-chain construction
-* compliance mapping
+- rule parsing
+- rule comparison
+- deterministic rule fingerprinting
+- rule-diff analysis
+- ATT&CK technique extraction
+- metadata validation
+- mutation generation
+- mutation scoring
+- robustness analysis
+- schema-drift analysis
+- event correlation
+- quality scoring
+- compliance mapping
+
+The project distinguishes local implementation from externally validated integrations.
 
 ---
 
 ## Sigma Translation
 
-Wraith supports translating Sigma detections into multiple backend query languages through pySigma.
+Wraith uses Sigma and pySigma to keep detection logic independent from a particular SIEM query language.
 
-Current supported backends include:
+The current translation layer supports:
 
-| Backend         | Output                  |
-| --------------- | ----------------------- |
-| Elasticsearch   | Elasticsearch query DSL |
-| OpenSearch      | OpenSearch query format |
-| Splunk          | Splunk SPL              |
-| Microsoft Kusto | KQL                     |
-| CrowdStrike     | CrowdStrike LogScale    |
-| Grafana Loki    | LogQL                   |
+| Backend | Output |
+| --- | --- |
+| Elasticsearch | Elasticsearch query DSL |
+| OpenSearch | OpenSearch query format |
+| Splunk | SPL |
+| Microsoft Kusto | KQL |
+| CrowdStrike | LogScale |
+| Grafana Loki | LogQL |
 
-The translation layer is intentionally separated from the detection logic so that a detection can remain backend-independent while being translated for different environments.
+The translation layer is separated from detection logic so the same detection can be evaluated against different backend representations.
 
-### Current validation
-
-The test suite verifies:
-
-* supported backends produce non-empty output
-* Elasticsearch output is valid JSON
-* Splunk output contains the expected PowerShell reference
-* Kusto output contains the expected encoded-command reference
-* unsupported backends raise an error
-
-The current local test environment has all supported optional SIEM backends installed.
+Local tests verify supported backend output and selected backend-specific expectations. Live third-party deployment is not implied by those tests.
 
 ---
 
-# Mutation Testing
+## Attack Simulation
 
-Wraith includes mutation-testing functionality for security detections.
+Wraith can construct representative attack chains from detection metadata and ATT&CK techniques.
 
-Instead of only testing whether a rule detects the original event, Wraith can generate controlled mutations of the input behavior and evaluate whether the detection remains effective.
+The validation pipeline can associate simulated stages with:
 
-Examples of mutation dimensions include:
+- ATT&CK technique IDs
+- attack tactics
+- synthetic users
+- synthetic hosts
+- generated telemetry
+- ordered attack stages
 
-* case variation
-* command-line variation
-* PowerShell parameter aliases
-* structural changes
-* attacker-controlled representation changes
+The current local pipeline has been exercised with a seven-stage synthetic Windows attack chain and indexed the resulting telemetry into Elasticsearch.
 
-The purpose is to identify brittle detections that depend on a single representation of attacker behavior.
+The simulation is intended for **controlled validation**, not real-world attack execution against external systems.
+
+---
+
+## Detection Validation
+
+Wraith validates detections against both attack telemetry and benign baseline telemetry.
+
+A validation run can measure:
+
+```text
+Attack telemetry
+      │
+      ├── Did the rule fire?
+      └── How many hits?
+
+Benign baseline
+      │
+      ├── Did the rule fire?
+      └── How many baseline documents were scanned?
+```
+
+For the current verified local example, a run successfully detected the simulated attack while producing zero hits across a 12,000-event synthetic benign baseline.
+
+This is a **test-environment result**, not a claim of production accuracy.
+
+---
+
+## Mutation Testing
+
+A detection should not be evaluated only against the exact event it was written for.
+
+Wraith generates controlled variations of attacker behavior and measures whether the detection continues to fire.
+
+Example mutation dimensions include:
+
+- case variation
+- whitespace variation
+- PowerShell parameter aliases
+- command-line representation changes
+- structural variations
 
 Conceptually:
 
 ```text
-Original malicious behavior
-          │
-          ▼
-     Detection Rule
-          │
-          ├── Original form
-          ├── Case variation
-          ├── Parameter variation
-          ├── Command variation
-          └── Structural variation
+Original behavior
+       │
+       ▼
+ Detection Rule
+       │
+       ├── Original
+       ├── Case variation
+       ├── Whitespace variation
+       ├── Parameter alias
+       └── Other controlled mutations
                     │
                     ▼
              Detection Results
                     │
                     ▼
-             Mutation Score
+             Robustness Measure
 ```
 
-A detection that only matches one exact representation can therefore be identified as less robust.
+The goal is to expose brittle detections and provide evidence for where the rule can be improved.
 
 ---
 
-# Detection Robustness
+## Robustness Analysis
 
-Wraith includes robustness analysis designed to identify naive detections.
+Mutation results are converted into a measurable robustness result.
 
-For example, a rule that only matches:
+In a current local validation run:
 
 ```text
-powershell.exe -EncodedCommand ...
+31 mutated variants tested
+11 variants detected
+20 variants not detected
+35.48% mutation detection rate
 ```
 
-may be weaker than a detection capable of recognizing valid PowerShell parameter aliases or equivalent representations.
-
-The robustness tests currently validate behaviors such as:
-
-* case-sensitive detection weaknesses
-* case-insensitive matching
-* PowerShell parameter aliases
-* generated command mutations
-* robustness scoring
-
-This is intended to model realistic attacker variation rather than simply testing the original known-good sample.
+The missed variants are retained as useful engineering evidence. A low mutation detection rate is not hidden behind a passing overall pipeline verdict.
 
 ---
 
-# Rule Diff and Fingerprinting
+## Rule Diff and Fingerprinting
 
-Detection changes should be observable and reviewable.
+Detection changes need to be observable and traceable.
 
-Wraith provides rule-diff functionality that can identify meaningful changes and generate deterministic fingerprints for detection content.
+Wraith provides deterministic fingerprinting and rule-diff functionality for detection content.
 
-This allows detection engineering workflows to answer questions such as:
+This supports workflows such as:
 
-* Did the rule actually change?
-* What changed?
-* Did a detection change without an expected fingerprint change?
-* Can a detection version be identified deterministically?
+```text
+Rule Version A
+      │
+      ▼
+Fingerprint A
+      │
+      │ change
+      ▼
+Rule Version B
+      │
+      ▼
+Fingerprint B
+```
 
-The implementation is useful for CI/CD workflows where detection changes should be traceable.
+This is useful for CI/CD, review workflows, provenance, and deployment gates.
 
 ---
 
-# ATT&CK Navigator Integration
+## ATT&CK Mapping
 
-Wraith can extract ATT&CK techniques from detection rules and generate ATT&CK Navigator-compatible representations.
+Wraith extracts ATT&CK techniques from detection metadata and uses those techniques during attack-chain construction and coverage analysis.
 
-This provides a way to visualize detection coverage and understand which techniques are represented by a detection set.
+The project also includes ATT&CK Navigator-compatible output functionality.
 
-The workflow is:
+The conceptual flow is:
 
 ```text
 Detection Rules
@@ -215,41 +346,36 @@ Detection Rules
 Technique Extraction
       │
       ▼
-ATT&CK Technique IDs
+ATT&CK IDs
       │
-      ▼
-Navigator Layer
+      ├── Coverage analysis
+      ├── Attack simulation
+      └── Navigator representation
 ```
 
-This can be used to identify coverage gaps and prioritize additional detections.
+---
+
+## Schema Drift
+
+Detection logic is dependent on telemetry schemas.
+
+Wraith includes schema-drift analysis for changes such as:
+
+- removed fields
+- renamed fields
+- type changes
+- structural changes
+- vendor-specific field differences
+
+The purpose is to identify detection failures caused by telemetry changes before those changes silently reach production.
 
 ---
 
-# Schema Drift Detection
+## Event Correlation
 
-Security detections depend heavily on event schemas.
+Wraith includes correlation functionality for relating security-relevant events and sequences.
 
-A field that exists today may be:
-
-* renamed
-* removed
-* changed in type
-* moved to another event structure
-* replaced by a vendor-specific field
-
-Wraith includes schema-drift analysis to identify changes that can affect detection behavior.
-
-The objective is to catch detection failures caused by telemetry changes before those failures reach production.
-
----
-
-# Event Correlation
-
-Single-event detections are not always sufficient for identifying multi-stage behavior.
-
-Wraith includes correlation functionality for associating related events and evaluating sequences of security-relevant activity.
-
-A simplified example:
+A simplified example is:
 
 ```text
 Process Creation
@@ -258,182 +384,135 @@ Process Creation
 Encoded PowerShell
        │
        ▼
-Network Connection
+Network Activity
        │
        ▼
 Credential Access
 ```
 
-Correlation can provide additional context that is unavailable from an isolated event.
+Correlation provides context that is not available from an isolated event.
 
 ---
 
-# Detection Quality Scoring
+## Quality Scoring
 
 Wraith includes an explainable detection-quality scoring component.
 
-The objective is not to produce an arbitrary "AI score", but to expose measurable dimensions that contribute to the resulting assessment.
+The score is based on measurable components rather than being presented as an unexplained AI judgment.
 
-The scoring functionality is designed to help evaluate factors such as:
+A current local validation run produced:
 
-* rule robustness
-* mutation behavior
-* coverage
-* metadata
-* ATT&CK alignment
-* detection characteristics
+```text
+Behavioral component       40
+False-positive component   20
+Robustness component       7.10
+Available weight           80
+Score                      83.87
+Rating                     acceptable
+```
 
-The score is intentionally explainable so that engineers can understand why a detection received a particular assessment.
+The score is intended as an engineering signal. It should not be interpreted as a universal measure of detection quality across environments.
 
 ---
 
-# Compliance Mapping
+## Compliance Mapping
 
-Wraith supports user-owned compliance mappings.
+Compliance mappings are represented as data rather than being hard-coded into the detection engine.
 
-Mappings are represented as data rather than being hard-coded into the detection engine.
-
-An example mapping file is provided:
+An example mapping is provided under:
 
 ```text
 engine-python/compliance_mappings.example.json
 ```
 
-This allows organizations to maintain mappings appropriate to their own compliance requirements and detection programs.
-
-The platform therefore does not assume that one universal compliance mapping is correct for every environment.
+Organizations can maintain mappings appropriate to their own requirements.
 
 ---
 
-# Attack Simulation
+# Control Plane
 
-Wraith includes attack-simulation functionality for constructing attack chains from detection metadata.
+The Go service provides the Wraith API and control-plane functionality.
 
-The simulator can:
+The API includes authenticated operations for:
 
-* extract techniques from rules
-* prefer explicitly tagged ATT&CK techniques
-* fall back when a technique is not directly known
-* construct a representative attack chain
+- validation-run visibility
+- run details and reports
+- attestations
+- audit data
+- rule linting
+- approval workflow
+- deployment workflow
+- rule inspection
 
-The purpose is to connect individual detections to broader adversary behavior.
+Authentication and role-based access control are enforced on protected API routes.
+
+The control plane is deliberately separate from the Python engine so the frontend does not directly manage database, Elasticsearch, Neo4j, or engine credentials.
 
 ---
 
-# CI Security Integration
+# Operations Dashboard
 
-Detection validation can be integrated into CI workflows.
+Wraith includes a TypeScript/Next.js operations interface.
 
-The repository includes GitHub Actions workflow functionality for detection-oriented CI checks.
+The dashboard is intended to expose the actual Wraith control plane rather than behave as a generic SOC mockup.
 
-The CI workflow can incorporate validation stages such as:
+Current UI surfaces include:
+
+- platform introduction
+- architecture overview
+- validation-run overview
+- run detail
+- pipeline activity
+- capability navigation
+- controlled playground entry point
+- API-key configuration
+- light/dark theme support
+
+The dashboard reads validation-run state from the Wraith API.
+
+Planned workspaces are explicitly identified as planned rather than represented as completed functionality.
+
+---
+
+# Data and Infrastructure
+
+The local Wraith stack uses real infrastructure components:
 
 ```text
-Detection Changes
-      │
-      ▼
-Rule Validation
-      │
-      ▼
-Mutation Testing
-      │
-      ▼
-Quality Evaluation
-      │
-      ▼
-CI Result
+┌───────────────────────────────────────────────┐
+│                 Docker Compose                │
+│                                               │
+│  ┌─────────┐   ┌──────────────┐               │
+│  │ Go API  │   │ Next.js UI   │               │
+│  └────┬────┘   └──────────────┘               │
+│       │                                        │
+│  ┌────┴──────┬─────────────┬───────────────┐  │
+│  │ PostgreSQL│ Elasticsearch│ Neo4j         │  │
+│  └───────────┴─────────────┴───────────────┘  │
+└───────────────────────────────────────────────┘
 ```
 
-This makes detection engineering part of the software-development lifecycle rather than a manual process performed after deployment.
-
----
-
-# GitHub App Foundation
-
-Wraith includes a GitHub App integration foundation under:
-
-```text
-integrations/github-app/
-```
-
-The integration provides the structure required for connecting Wraith's detection-engineering workflow with GitHub-based development processes.
-
-The current repository includes:
-
-```text
-integrations/github-app/manifest.yml
-integrations/github-app/README.md
-```
-
-This component should be considered an integration foundation rather than evidence of a fully deployed GitHub App service.
-
----
-
-# SOAR / Automation
-
-Wraith includes automation-oriented pipeline functionality and an Anthropic/GitHub integration path.
-
-The project is designed to support security automation workflows where detection analysis can become part of a larger response or engineering process.
-
-External integrations should be evaluated separately from the deterministic local detection-engineering components.
-
-The local test suite primarily validates the project's Python logic and translation functionality. It should not be interpreted as proof that every external production API integration has been exercised against a live third-party service.
-
----
-
-# Architecture
-
-At a high level, Wraith is organized into several layers:
-
-```text
-                         ┌──────────────────────┐
-                         │      Detection       │
-                         │       Content        │
-                         └──────────┬───────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │   Detection Engine   │
-                         └──────────┬───────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              │                     │                     │
-              ▼                     ▼                     ▼
-       Sigma Translation      Mutation Testing      Rule Analysis
-              │                     │                     │
-              ▼                     ▼                     ▼
-        SIEM Backends          Robustness            Rule Diff
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │ Validation / Analysis│
-                         └──────────┬───────────┘
-                                    │
-          ┌───────────────┬─────────┼──────────┬──────────────┐
-          │               │         │          │              │
-          ▼               ▼         ▼          ▼              ▼
-       ATT&CK         Schema     Correlation  Quality     Compliance
-       Mapping         Drift                    Score       Mapping
-          │               │         │          │              │
-          └───────────────┴─────────┼──────────┴──────────────┘
-                                    │
-                                    ▼
-                         ┌──────────────────────┐
-                         │ CI / Automation /    │
-                         │ Operational Workflows│
-                         └──────────────────────┘
-```
+The stack is designed so a local validation run can exercise the same major component boundaries used by the platform architecture.
 
 ---
 
 # Repository Structure
 
-The repository is organized approximately as follows:
-
 ```text
 Wraith/
-├── engine-python/
-│   ├── atomic_red_team.py
+├── backend-go/                 # Go control plane and API
+│   ├── api/
+│   ├── auth/
+│   ├── config/
+│   ├── deploy/
+│   ├── linter/
+│   ├── metrics/
+│   ├── notify/
+│   ├── orchestrator/
+│   └── main.go
+│
+├── engine-python/              # Detection and validation engine
+│   ├── attack_simulator.py
 │   ├── attack_navigator.py
 │   ├── compliance_map.py
 │   ├── correlation.py
@@ -443,128 +522,115 @@ Wraith/
 │   ├── rule_diff.py
 │   ├── run_pipeline.py
 │   ├── schema_drift.py
+│   ├── sigma_to_es.py
 │   ├── sigma_translate.py
-│   ├── requirements.txt
-│   └── requirements-siem.txt
+│   └── requirements*.txt
 │
-├── integrations/
+├── frontend/                   # TypeScript / Next.js UI
+│   ├── components/
+│   ├── lib/
+│   ├── pages/
+│   └── styles.css
+│
+├── rules/                      # Sigma detection content
+│
+├── tests/                      # Python engine tests
+│
+├── integrations/               # External integration foundations
 │   └── github-app/
-│       ├── manifest.yml
-│       └── README.md
 │
-├── tests/
-│   ├── test_advanced_features.py
-│   ├── test_attack_simulator.py
-│   ├── test_robustness_fuzzer.py
-│   ├── test_sigma_translate.py
-│   └── README.md
+├── docs/                       # Architecture and engineering documentation
 │
-├── docs/
-│   ├── API.md
-│   ├── ARCHITECTURE.md
-│   ├── CI_SECURITY.md
-│   ├── DESIGN_DECISIONS.md
-│   ├── DEPLOYMENT.md
-│   ├── DETECTION_ENGINEERING.md
-│   ├── ENTERPRISE.md
-│   ├── FEATURES.md
-│   ├── OPERATIONS.md
-│   ├── PROVENANCE.md
-│   ├── SECURITY_MODEL.md
-│   ├── TESTING.md
-│   ├── THREAT_MODEL.md
-│   ├── USING_AS_ACTION.md
-│   └── VALIDATION.md
+├── .github/workflows/          # CI and security automation
 │
-├── .github/
-│   └── workflows/
-│       └── detection-ci.yml
-│
+├── docker-compose.yml          # Local platform stack
 ├── Makefile
+├── action.yml
+├── LICENSE
+├── SECURITY.md
+├── CONTRIBUTING.md
 └── README.md
 ```
 
 ---
 
-# Documentation
+# Quick Start
 
-Detailed project documentation is available in the `docs/` directory.
+Wraith is designed to be run as a local multi-service stack.
 
-| Document                                               | Description                                     |
-| ------------------------------------------------------ | ----------------------------------------------- |
-| [Architecture](docs/ARCHITECTURE.md)                   | System architecture and component relationships |
-| [API](docs/API.md)                                     | API and interface documentation                 |
-| [CI Security](docs/CI_SECURITY.md)                     | Detection validation in CI/CD                   |
-| [Design Decisions](docs/DESIGN_DECISIONS.md)           | Important engineering decisions                 |
-| [Deployment](docs/DEPLOYMENT.md)                       | Deployment considerations                       |
-| [Detection Engineering](docs/DETECTION_ENGINEERING.md) | Detection development workflow                  |
-| [Enterprise](docs/ENTERPRISE.md)                       | Enterprise deployment considerations            |
-| [Features](docs/FEATURES.md)                           | Feature-level documentation                     |
-| [Operations](docs/OPERATIONS.md)                       | Operational considerations                      |
-| [Provenance](docs/PROVENANCE.md)                       | Detection and data provenance                   |
-| [Security Model](docs/SECURITY_MODEL.md)               | Security boundaries and controls                |
-| [Testing](docs/TESTING.md)                             | Testing strategy                                |
-| [Threat Model](docs/THREAT_MODEL.md)                   | Threat model and security assumptions           |
-| [Using as Action](docs/USING_AS_ACTION.md)             | GitHub/automation usage                         |
-| [Validation](docs/VALIDATION.md)                       | Detection validation methodology                |
+## Prerequisites
 
-Additional test documentation:
+- Docker and Docker Compose
+- Git
+- Python 3.13 for engine development and tests
+- Go toolchain for backend development
+- Node.js for frontend development
 
-* [Test Suite](tests/README.md)
+## Start the local stack
 
----
+```bash
+git clone https://github.com/locallhosts/Wraith.git
+cd Wraith
 
-# Installation
+cp .env.example .env
 
-Wraith's Python components can be run in an isolated Python environment.
+docker compose up --build
+```
 
-Python 3.13 has been used for the current local verification.
+The local stack exposes the API and frontend according to the ports configured in `docker-compose.yml`.
 
-Create a virtual environment:
+For engine-only development, create an isolated Python environment:
 
 ```bash
 python3 -m venv .venv
-```
-
-Activate it:
-
-### macOS / Linux
-
-```bash
 source .venv/bin/activate
-```
-
-### Windows
-
-```powershell
-.venv\Scripts\activate
-```
-
-Upgrade pip:
-
-```bash
 python -m pip install --upgrade pip
-```
-
-Install the core Python dependencies:
-
-```bash
 python -m pip install -r engine-python/requirements.txt
-```
-
-Install the optional SIEM translation backends:
-
-```bash
 python -m pip install -r engine-python/requirements-siem.txt
 ```
 
-The optional backend file contains additional pySigma backends used by the Sigma translation functionality.
+The Python environment is a **development path for the engine**, not the definition of the complete Wraith platform.
+
+---
+
+# Running a Validation Pipeline
+
+A local pipeline can be executed against the local Elasticsearch and Neo4j services.
+
+Example:
+
+```bash
+python engine-python/run_pipeline.py \
+  --rule rules/suspicious_powershell_encodedcommand.yml \
+  --run-id local-validation-004 \
+  --target-os windows \
+  --es-addr http://localhost:9200 \
+  --neo4j-addr bolt://localhost:7687 \
+  --neo4j-user neo4j \
+  --neo4j-pass wraith-test-pw
+```
+
+The pipeline can produce:
+
+- Sigma translation output
+- synthetic attack telemetry
+- ATT&CK attack-chain data
+- Elasticsearch validation results
+- benign baseline measurements
+- adversarial mutation results
+- robustness measurements
+- quality scoring
+- validation reports
+- provenance/attestation data
+- optional automation output
+
+External provider integrations remain provider-dependent and are not treated as proof of deterministic local validation.
 
 ---
 
 # Testing
 
-Run the complete Python test suite with:
+## Python engine
 
 ```bash
 python -m pytest tests/ -v
@@ -579,438 +645,200 @@ pytest: 9.1.1
 21 tests collected
 21 passed
 0 failed
-
-Runtime: 0.58s
 ```
 
-The verified test groups currently include:
+The verified Python test groups include:
 
-### Advanced detection engineering
+- advanced detection engineering
+- deterministic mutation generation
+- mutation scoring
+- rule-diff fingerprints
+- ATT&CK Navigator extraction
+- schema-drift detection
+- correlation
+- explainable quality scoring
+- compliance mapping
+- attack simulation
+- robustness testing
+- Sigma translation
 
-* deterministic mutation generation
-* mutation scoring
-* rule-diff fingerprint changes
-* ATT&CK Navigator extraction
-* schema-drift detection
-* correlation
-* explainable quality scoring
-* user-owned compliance mapping
+## Go backend
 
-### Attack simulation
+Backend tests can be run from the repository with:
 
-* ATT&CK technique extraction
-* tagged-technique preference
-* fallback technique handling
+```bash
+go test ./backend-go/...
+```
 
-### Robustness testing
+## Frontend
 
-* mutation generation
-* case variation
-* PowerShell parameter aliases
-* robustness scoring
-
-### Sigma translation
-
-* supported backend output
-* Elasticsearch JSON validation
-* Splunk PowerShell references
-* Kusto encoded-command references
-* unknown-backend error handling
+Frontend validation should be performed with the project's Node/Next.js build and lint commands defined in `frontend/package.json`.
 
 ---
 
 # Verification Status
 
-The project intentionally distinguishes between implementation and external validation.
+Wraith intentionally separates **implemented code**, **local verification**, and **external/provider-dependent behavior**.
 
-| Capability                      | Status                         |
-| ------------------------------- | ------------------------------ |
-| Detection analysis              | Implemented                    |
-| Mutation testing                | Implemented and locally tested |
-| Robustness testing              | Implemented and locally tested |
-| Rule diff/fingerprinting        | Implemented and locally tested |
-| ATT&CK Navigator extraction     | Implemented and locally tested |
-| Schema-drift analysis           | Implemented and locally tested |
-| Correlation                     | Implemented and locally tested |
-| Quality scoring                 | Implemented and locally tested |
-| Compliance mapping              | Implemented and locally tested |
-| Attack-chain simulation         | Implemented and locally tested |
-| Sigma translation               | Implemented and locally tested |
-| Elasticsearch translation       | Locally verified               |
-| OpenSearch translation          | Locally verified               |
-| Splunk translation              | Locally verified               |
-| Kusto translation               | Locally verified               |
-| CrowdStrike translation         | Locally verified               |
-| Loki translation                | Locally verified               |
-| CI integration                  | Implemented                    |
-| GitHub App foundation           | Implemented                    |
-| SOAR integration path           | Implemented                    |
-| Live third-party API validation | Environment-dependent          |
-| Production deployment           | Not claimed by local tests     |
+| Capability | Status |
+| --- | --- |
+| Detection analysis | Implemented |
+| Mutation testing | Implemented and locally tested |
+| Robustness testing | Implemented and locally tested |
+| Rule diff / fingerprinting | Implemented and locally tested |
+| ATT&CK technique extraction | Implemented and locally tested |
+| ATT&CK Navigator output | Implemented and locally tested |
+| Schema-drift analysis | Implemented and locally tested |
+| Correlation | Implemented and locally tested |
+| Quality scoring | Implemented and locally tested |
+| Compliance mapping | Implemented and locally tested |
+| Attack-chain simulation | Implemented and locally tested |
+| Sigma translation | Implemented and locally tested |
+| Elasticsearch translation | Locally verified |
+| OpenSearch translation | Locally verified |
+| Splunk translation | Locally verified |
+| Kusto translation | Locally verified |
+| CrowdStrike translation | Locally verified |
+| Loki translation | Locally verified |
+| Go control plane | Implemented |
+| API authentication / RBAC | Implemented |
+| PostgreSQL persistence | Implemented |
+| Elasticsearch validation backend | Locally validated |
+| Neo4j attack-chain persistence | Locally validated |
+| Operations dashboard | Implemented |
+| GitHub integration foundation | Implemented / foundation |
+| SOAR / external AI integrations | Provider-dependent |
+| Production deployment | Environment-dependent |
 
-The capabilities described here are implemented and covered by the verification status above; where validation scope differs by backend or external service, the limitation is explicitly identified.
-
----
-
-# Reproducibility
-
-The project uses pinned Python dependencies.
-
-Core dependencies are defined in:
-
-```text
-engine-python/requirements.txt
-```
-
-Optional SIEM translation dependencies are defined in:
-
-```text
-engine-python/requirements-siem.txt
-```
-
-Using a virtual environment is recommended.
-
-For reproducible testing:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r engine-python/requirements.txt
-python -m pip install -r engine-python/requirements-siem.txt
-python -m pytest tests/ -v
-```
+The table is intentionally conservative. Passing a local unit test does not imply production readiness, and an integration foundation is not described as a fully deployed service.
 
 ---
 
-# Security Considerations
+# CI/CD and Security
 
-Wraith is a security-engineering platform and should itself be treated as security-sensitive infrastructure.
+The repository includes GitHub Actions for detection-oriented CI and security checks.
 
-Important considerations include:
-
-* detection content can contain sensitive organizational information
-* SIEM credentials must never be committed to the repository
-* API tokens must be stored using appropriate secret-management mechanisms
-* external integrations should follow least-privilege principles
-* generated detection queries should be reviewed before production deployment
-* compliance mappings should be validated against organizational requirements
-* attack simulation should only be executed in authorized environments
-* external AI/API integrations should be treated as separate trust boundaries
-
-Wraith does not remove the need for security review of generated or translated detection content.
-
-See:
-
-* [Security Model](docs/SECURITY_MODEL.md)
-* [Threat Model](docs/THREAT_MODEL.md)
-* [Operations](docs/OPERATIONS.md)
-
----
-
-# Threat Model
-
-Wraith operates across several trust boundaries:
-
-```text
-Detection Author
-       │
-       ▼
-Wraith Engine
-       │
-       ├──────────────► SIEM / Search Backend
-       │
-       ├──────────────► GitHub
-       │
-       ├──────────────► SOAR / Automation
-       │
-       └──────────────► External APIs
-```
-
-Security assumptions and threats include:
-
-* malicious or malformed detection content
-* untrusted event data
-* compromised integration credentials
-* unauthorized CI execution
-* malicious pull requests
-* dependency compromise
-* unsafe generated queries
-* excessive API permissions
-* leakage of security telemetry
-
-The detailed threat model is documented in:
-
-[Threat Model](docs/THREAT_MODEL.md)
-
----
-
-# Detection Engineering Workflow
-
-A recommended Wraith workflow is:
-
-### 1. Author
-
-Create or modify the detection.
-
-### 2. Analyze
-
-Inspect metadata, fields, techniques, and detection logic.
-
-### 3. Translate
-
-Generate backend-specific queries where required.
-
-### 4. Mutate
-
-Generate controlled variations of attacker behavior.
-
-### 5. Test
-
-Evaluate detection behavior against original and mutated inputs.
-
-### 6. Measure
-
-Calculate robustness and quality metrics.
-
-### 7. Correlate
-
-Evaluate relationships between related events.
-
-### 8. Map
-
-Associate detections with ATT&CK and organizational compliance requirements.
-
-### 9. Review
-
-Inspect the resulting changes and validation evidence.
-
-### 10. Deploy
-
-Promote validated detection content through the organization's normal change-management process.
-
----
-
-# Makefile
-
-Common project operations are exposed through the Makefile where supported.
-
-Examples include:
-
-```bash
-make mutation-test
-make navigator
-make quality-test
-```
-
-Run:
-
-```bash
-make
-```
-
-to inspect the available project targets.
-
----
-
-# CI/CD
-
-The repository contains a GitHub Actions workflow for detection-focused CI.
-
-The workflow is intended to make detection validation part of the development process.
-
-A simplified workflow is:
+The intended workflow is:
 
 ```text
 Pull Request
      │
      ▼
+Detection Changes
+     │
+     ▼
+Rule / Code Validation
+     │
+     ▼
+Security Checks
+     │
+     ▼
 Detection Validation
      │
-     ├── Tests
-     ├── Mutation Analysis
-     ├── Quality Checks
-     └── Detection Validation
-             │
-             ▼
-        Review / Merge
+     ▼
+Review / Approval
 ```
 
-See:
+Security automation includes dependency and package checks, static analysis, secret scanning, container scanning, and detection-oriented validation where configured.
 
-[CI Security](docs/CI_SECURITY.md)
-
----
-
-# Design Principles
-
-Wraith follows several engineering principles.
-
-## 1. Detection logic should be testable
-
-A detection should be treated as software-like logic rather than an untested text artifact.
-
-## 2. Adversarial variation matters
-
-Attackers do not necessarily reproduce the exact command or event representation used during detection development.
-
-## 3. Validation should be measurable
-
-Detection engineering should produce evidence rather than relying exclusively on intuition.
-
-## 4. Backend translation should remain separate from detection logic
-
-A detection should ideally remain portable while backend-specific translation occurs at the integration boundary.
-
-## 5. Compliance mappings should be user-owned
-
-Organizations should control their own mappings rather than depending on hard-coded assumptions.
-
-## 6. External integrations are trust boundaries
-
-A passing unit test does not constitute proof that an external production integration is correctly configured.
-
-## 7. Explainability matters
-
-Security engineers should be able to understand why a detection received a particular quality or robustness assessment.
+Some GitHub security features depend on repository-level settings and are therefore documented separately from the local application stack.
 
 ---
 
-# Limitations
+# Security Model
 
-Wraith is not intended to replace:
+Wraith is designed around several security boundaries:
 
-* a production SIEM
-* an EDR
-* a complete SOAR platform
-* threat intelligence platforms
-* human detection engineering review
-* production change management
-* organizational compliance programs
+- authenticated API access
+- role-based authorization
+- controlled rule inspection
+- separation between frontend and backend credentials
+- audit-oriented persistence
+- cryptographic provenance/attestation support
+- approval gates for deployment workflows
+- synthetic attack telemetry for local validation
 
-Detection validation is also not equivalent to proving that a detection catches every possible representation of an attack.
+Attack simulation is intended to generate controlled telemetry rather than execute arbitrary attacks against third-party infrastructure.
 
-Mutation testing improves confidence by evaluating selected variations, but it cannot exhaustively enumerate adversarial behavior.
-
-Similarly, a successful Sigma translation test confirms the translation behavior exercised by the test suite; it does not prove that every generated query is semantically optimal for every organization's telemetry.
-
----
-
-# Project Roadmap
-
-Planned areas of development include:
-
-* expanded detection datasets
-* broader adversarial mutation strategies
-* additional SIEM/query backends
-* deeper telemetry-schema validation
-* larger-scale correlation testing
-* expanded ATT&CK coverage analysis
-* improved CI reporting
-* richer GitHub integration
-* production-oriented integration testing
-* deployment automation
-* interactive demonstration environment
-* additional security validation and dependency analysis
-
-Roadmap items should not be interpreted as currently implemented functionality.
+See [`SECURITY.md`](SECURITY.md) and the security documentation under [`docs/`](docs/) for additional details.
 
 ---
 
-# Development Philosophy
+# Documentation
 
-Wraith is being developed as a practical security-engineering project rather than as a collection of disconnected demonstrations.
+Detailed engineering documentation is available in `docs/`.
 
-The emphasis is on:
-
-```text
-Build
-  ↓
-Test
-  ↓
-Measure
-  ↓
-Attack the assumptions
-  ↓
-Improve
-  ↓
-Verify
-  ↓
-Document
-```
-
-The project intentionally records limitations and validation boundaries rather than treating every implemented code path as production-proven.
+| Document | Description |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | System architecture and component relationships |
+| [API](docs/API.md) | API and interface documentation |
+| [CI Security](docs/CI_SECURITY.md) | Detection validation in CI/CD |
+| [Design Decisions](docs/DESIGN_DECISIONS.md) | Important engineering decisions |
+| [Deployment](docs/DEPLOYMENT.md) | Deployment considerations |
+| [Detection Engineering](docs/DETECTION_ENGINEERING.md) | Detection development workflow |
+| [Enterprise](docs/ENTERPRISE.md) | Enterprise deployment considerations |
+| [Features](docs/FEATURES.md) | Feature-level documentation |
+| [Operations](docs/OPERATIONS.md) | Operational considerations |
+| [Provenance](docs/PROVENANCE.md) | Detection and data provenance |
+| [Security Model](docs/SECURITY_MODEL.md) | Security boundaries and controls |
+| [Testing](docs/TESTING.md) | Testing strategy |
+| [Threat Model](docs/THREAT_MODEL.md) | Threat model and security assumptions |
+| [Using as Action](docs/USING_AS_ACTION.md) | GitHub/automation usage |
+| [Validation](docs/VALIDATION.md) | Detection validation methodology |
 
 ---
 
-# Current Verification Snapshot
+# Open Source
 
-Latest local verification:
+Wraith is developed as an open-source security engineering project.
 
-```text
-Environment
------------
-Platform: macOS
-Python:   3.13.3
-pytest:   9.1.1
+The project is intended to make detection-engineering methodology inspectable and reproducible rather than hiding validation logic behind a hosted service.
 
-Test suite
------------
-Collected: 21
-Passed:    21
-Failed:     0
+Contributions should favor:
 
-Result
-------
-21 passed in 0.58s
-```
+- reproducible tests
+- explicit security assumptions
+- measurable validation results
+- small, reviewable changes
+- real integrations over simulated interfaces
+- clear separation between implemented and planned capabilities
 
-Git working tree at the time of this verification:
-
-```text
-clean
-```
-
-This snapshot describes the local development environment used for verification and should not be interpreted as a guarantee of identical behavior in every deployment environment.
-
----
-
-# Contributing
-
-Contributions should preserve the project's focus on measurable security engineering.
-
-Before submitting changes:
-
-```bash
-python -m pytest tests/ -v
-```
-
-For detection-related changes, contributors should consider adding tests that demonstrate:
-
-* expected detection behavior
-* negative cases
-* adversarial variations
-* translation behavior
-* metadata changes
-* schema assumptions
-
-Changes should also update relevant documentation when behavior or interfaces change.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidance.
 
 ---
 
 # License
 
-See the repository license file for the applicable terms.
+Wraith is licensed under the terms in [`LICENSE`](LICENSE).
 
 ---
 
-# Author / Project
+# Project Direction
 
-**Wraith**
+The long-term direction is to provide one engineering surface connecting:
 
-Detection engineering, validation, and security automation.
+```text
+Detection Content
+      │
+      ▼
+Engineering Analysis
+      │
+      ▼
+Executable Validation
+      │
+      ▼
+Adversarial Testing
+      │
+      ▼
+Evidence
+      │
+      ▼
+Governance
+      │
+      ▼
+Deployment
+```
 
-GitHub:
+The guiding principle is simple:
 
-https://github.com/locallhosts/Wraith
-
-The project is developed as a security-engineering portfolio and research project, with an emphasis on detection quality, adversarial validation, automation, and reproducible engineering practices.
+> **A detection should be measurable before it is trusted.**

@@ -1,3 +1,34 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dashboard light theme. Dark remains the default so existing screenshots and local runs stay unchanged. */
+html.wraith-light,
+body.wraith-light {
+  background: #f4f4f5;
+  color: #27272a;
+}
+
+html.wraith-light [class~="bg-[#0a0e13]"] { background-color: #f4f4f5 !important; }
+html.wraith-light [class~="bg-[#0d1117]/95"] { background-color: rgba(255,255,255,.96) !important; }
+html.wraith-light [class~="bg-[#0f141b]"] { background-color: #ffffff !important; }
+html.wraith-light [class~="bg-[#0d1218]"] { background-color: #fafafa !important; }
+html.wraith-light [class~="bg-[#11161d]"] { background-color: #ffffff !important; }
+html.wraith-light [class~="border-zinc-800"] { border-color: #e4e4e7 !important; }
+html.wraith-light [class~="border-zinc-700"] { border-color: #d4d4d8 !important; }
+html.wraith-light [class~="text-zinc-100"] { color: #18181b !important; }
+html.wraith-light [class~="text-zinc-200"] { color: #27272a !important; }
+html.wraith-light [class~="text-zinc-300"] { color: #3f3f46 !important; }
+html.wraith-light [class~="text-zinc-400"] { color: #52525b !important; }
+html.wraith-light [class~="text-zinc-500"] { color: #71717a !important; }
+html.wraith-light [class~="text-zinc-600"] { color: #71717a !important; }
+html.wraith-light [class~="text-zinc-700"] { color: #a1a1aa !important; }
+html.wraith-light [class~="hover:bg-zinc-900"]:hover,
+html.wraith-light [class~="hover:bg-zinc-900/40"]:hover { background-color: #f4f4f5 !important; }
+html.wraith-light [class~="hover:bg-white"]:hover { background-color: #fafafa !important; }
+html.wraith-light [class~="hover:text-zinc-200"]:hover { color: #27272a !important; }
+html.wraith-light [class~="focus:border-zinc-600"]:focus { border-color: #a1a1aa !important; }
+html.wraith-light [class~="placeholder:text-zinc-700"]::placeholder { color: #a1a1aa !important; }
+html.wraith-light [class~="divide-zinc-800/80"] > :not([hidden]) ~ :not([hidden]) { border-color: rgba(228,228,231,.8) !important; }
+html.wraith-light select,
+html.wraith-light input { color-scheme: light; }

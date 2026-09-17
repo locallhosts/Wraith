@@ -1,11 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/locallhosts/Wraith/backend-go/auth"
-	"github.com/locallhosts/Wraith/backend-go/store"
 )
 
 func listRunEvents(s *Server, c *gin.Context) {
@@ -23,6 +22,3 @@ func listRunEvents(s *Server, c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, events)
 }
-
-var _ store.Store
-var _ = auth.RequireRole

@@ -133,6 +133,69 @@ paths:
       summary: Manually lint all rules in the configured rules directory
       description: Requires role >= analyst
       responses: { "200": { description: OK } }
+  /session:
+    get:
+      summary: Current authenticated dashboard identity
+      description: Requires role >= viewer
+      responses:
+        "200": { description: Authenticated identity }
+  /runs/{id}/events:
+    get:
+      summary: Pipeline execution events for a run
+      description: Requires role >= viewer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, maximum: 2000 }
+      responses:
+        "200": { description: Event list }
+  /runs/{id}/report:
+    get:
+      summary: Pipeline evidence report
+      description: Requires role >= viewer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Pipeline report }
+        "404": { description: Report not available yet }
+  /runs/{id}/attestation:
+    get:
+      summary: Signed provenance attestation
+      description: Requires role >= viewer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Attestation }
+        "404": { description: Attestation not available }
+  /rules:
+    get:
+      summary: List configured Sigma rules and lint summaries
+      description: Requires role >= viewer
+      responses:
+        "200": { description: Rule summaries }
+  /rules/{name}:
+    get:
+      summary: Inspect one Sigma rule and its lint findings
+      description: Requires role >= viewer
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Rule source and lint findings }
+        "404": { description: Rule not found }
   /audit:
     get:
       summary: Full audit trail

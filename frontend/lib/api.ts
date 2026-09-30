@@ -2,190 +2,35 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
 const API_KEY_STORAGE_KEY = "wraith_api_key";
 
 export interface RunStatus {
-  run_id: string;
-  rule_path: string;
-  rule_id: string;
-  rule_title: string;
-  repo: string;
-  pr_number: number;
+  run_id: string; rule_path: string; rule_id: string; rule_title: string; repo: string; pr_number: number;
   stage: "lint" | "provision" | "simulate" | "validate" | "soar" | "done" | "failed";
-  passed?: boolean;
-  reason?: string;
-  approved_by?: string;
-  approved_at?: string;
-  deployed_at?: string;
-  started_at: string;
-  updated_at: string;
+  passed?: boolean; reason?: string; approved_by?: string; approved_at?: string; deployed_at?: string;
+  started_at: string; updated_at: string;
 }
+export interface RunEvent { id:number; run_id:string; stage:string; level:string; message:string; created_at:string; }
+export interface RuleSummary { name:string; path:string; title:string; id:string; status:string; level:string; passed:boolean; issue_count:number; error_count:number; warning_count:number; }
+export interface RuleDetail { name:string; path:string; passed:boolean; rule:any; issues:any[]; content:string; }
+export interface AuditEvent { id:number; actor:string; actor_role:string; action:string; resource:string; detail:string; ip_address?:string; timestamp:string; }
+export interface Session { label:string; role:"viewer"|"analyst"|"lead"|"admin"; }
+export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown; }
 
-export interface HealthStatus {
-  status?: string;
-  [key: string]: unknown;
-}
+export function getApiKey(){ if(typeof window==="undefined") return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }
+export function setApiKey(key:string){ if(typeof window==="undefined") return; if(key) window.localStorage.setItem(API_KEY_STORAGE_KEY,key); else window.localStorage.removeItem(API_KEY_STORAGE_KEY); }
+function authHeaders():HeadersInit { const key=getApiKey(); return key?{Authorization:`Bearer ${key}`}:{}; }
 
-export function getApiKey(): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(API_KEY_STORAGE_KEY) || "";
-}
-
-export function setApiKey(key: string) {
-  if (typeof window === "undefined") return;
-  if (key) window.localStorage.setItem(API_KEY_STORAGE_KEY, key);
-  else window.localStorage.removeItem(API_KEY_STORAGE_KEY);
-}
-
-function authHeaders(): HeadersInit {
-  const key = getApiKey();
-  return key ? { Authorization: `Bearer ${key}` } : {};
-}
-
-export const fetcher = (path: string) =>
-  fetch(`${API_BASE}${path}`, { headers: authHeaders() }).then(async (res) => {
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `API error ${res.status}`);
-    }
-    return res.json();
-  });
-
-async function post(path: string, body?: unknown): Promise<{ ok: boolean; data: any }> {
-  const headers: HeadersInit = { ...authHeaders(), "Content-Type": "application/json" };
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, data };
-}
-
-export async function fetchRuns(): Promise<RunStatus[]> {
-  return fetcher("/runs");
-}
-
-export async function fetchRun(id: string): Promise<RunStatus> {
-  return fetcher(`/runs/${id}`);
-}
-
-export interface StageValidate {
-  fired_on_attack?: boolean;
-  attack_hit_count?: number;
-  fired_on_baseline?: boolean;
-  baseline_hit_count?: number;
-  baseline_docs_scanned?: number;
-  false_positive_rate?: number;
-  passed?: boolean;
-  reason?: string;
-}
-
-export interface StageAttackSimulation {
-  status?: string;
-  target_os?: string;
-  target_os_source?: string;
-  rule_tagged_techniques?: string[];
-  simulated_chain?: string[];
-  simulated_user?: string;
-  simulated_host?: string;
-  events_indexed?: number;
-}
-
-export interface StageRobustness {
-  status?: string;
-  reason?: string;
-  rule_id?: string;
-  variants_tested?: number;
-  variants_detected?: number;
-  score?: number;
-  undetected_examples?: { mutation_chain: string[]; event: Record<string, any> }[];
-}
-
-export interface StageSoarPlaybook {
-  status?: string;
-  path?: string;
-  pr_url?: string;
-  error?: string;
-}
-
-export interface StageQualityScore {
-  available_weight?: number;
-  max?: number;
-  score?: number;
-  rating?: string;
-  components?: Record<string, number>;
-}
-
-export interface RunReport {
-  run_id: string;
-  rule_path: string;
-  rule_id: string;
-  passed: boolean;
-  duration_seconds: number;
-  environment?: { target_os?: string; target_os_source?: string };
-  stages: {
-    translate?: { status?: string; query_dsl_path?: string };
-    baseline?: { status?: string; events_indexed?: number };
-    attack_simulation?: StageAttackSimulation;
-    validate?: StageValidate;
-    robustness?: StageRobustness;
-    quality_score?: StageQualityScore;
-    soar_playbook?: StageSoarPlaybook;
-  };
-}
-
-export interface AuditEvent {
-  [key: string]: unknown;
-}
-
-export interface Attestation {
-  attestation: {
-    schema_version: string;
-    run_id: string;
-    rule_id: string;
-    rule_content_sha256: string;
-    tested_techniques: string[];
-    baseline_events_n: number;
-    false_positive_rate: number;
-    robustness_score: number;
-    passed: boolean;
-    issued_at: string;
-    issuer: string;
-  };
-  signature: string;
-  public_key: string;
-}
-
-export async function fetchReport(id: string): Promise<RunReport> {
-  return fetcher(`/runs/${id}/report`);
-}
-
-export async function fetchAttestation(id: string): Promise<Attestation> {
-  return fetcher(`/runs/${id}/attestation`);
-}
-
-export async function fetchAudit(): Promise<AuditEvent[]> {
-  return fetcher("/audit");
-}
-
-export async function lintRules(body: unknown): Promise<unknown> {
-  const result = await post("/lint", body);
-  if (!result.ok) throw new Error(result.data?.error || "Lint request failed");
-  return result.data;
-}
-
-export async function fetchHealth(): Promise<HealthStatus> {
-  return fetcher("/healthz");
-}
-
-export async function fetchReady(): Promise<HealthStatus> {
-  return fetcher("/readyz");
-}
-
-/** Requires an API key with role >= lead. */
-export async function approveRun(runId: string) {
-  return post(`/runs/${runId}/approve`);
-}
-
-/** Requires an API key with role >= lead, plus the run must already be approved and have a valid provenance attestation on disk. */
-export async function deployRun(runId: string) {
-  return post(`/runs/${runId}/deploy`);
-}
+export const fetcher=(path:string)=>fetch(`${API_BASE}${path}`,{headers:authHeaders()}).then(async res=>{if(!res.ok){const body=await res.json().catch(()=>({}));throw new Error(body.error||`API error ${res.status}`)}return res.json()});
+async function post(path:string,body?:unknown):Promise<{ok:boolean;data:any}>{const headers:HeadersInit={...authHeaders(),"Content-Type":"application/json"};const res=await fetch(`${API_BASE}${path}`,{method:"POST",headers,body:body===undefined?undefined:JSON.stringify(body)});const data=await res.json().catch(()=>({}));return{ok:res.ok,data};}
+export function fetchRuns(){return fetcher("/runs") as Promise<RunStatus[]>}
+export function fetchRun(id:string){return fetcher(`/runs/${id}`) as Promise<RunStatus>}
+export function fetchRunEvents(id:string){return fetcher(`/runs/${id}/events?limit=1000`) as Promise<RunEvent[]>}
+export function fetchReport(id:string){return fetcher(`/runs/${id}/report`)}
+export function fetchAttestation(id:string){return fetcher(`/runs/${id}/attestation`)}
+export function fetchRules(){return fetcher("/rules") as Promise<{count:number;rules:RuleSummary[]}>}
+export function fetchRule(name:string){return fetcher(`/rules/${encodeURIComponent(name)}`) as Promise<RuleDetail>}
+export function fetchAudit(){return fetcher("/audit") as Promise<AuditEvent[]>}
+export function fetchSession(){return fetcher("/session") as Promise<Session>}
+export function fetchHealth(){return fetcher("/healthz") as Promise<HealthStatus>}
+export function fetchReady(){return fetcher("/readyz") as Promise<HealthStatus>}
+export async function lintRules(){const result=await post("/lint",{});if(!result.ok)throw new Error(result.data?.error||"Lint request failed");return result.data}
+export function approveRun(id:string){return post(`/runs/${id}/approve`)}
+export function deployRun(id:string){return post(`/runs/${id}/deploy`)}

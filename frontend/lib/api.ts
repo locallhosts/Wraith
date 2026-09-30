@@ -15,6 +15,7 @@ export interface Session { label:string; role:"viewer"|"analyst"|"lead"|"admin";
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown; }
 export interface RunReport { run_id?:string; passed?:boolean; reason?:string; stages: Record<string, any>; [key:string]:any; }
 export interface Attestation { attestation:{issuer?:string;issued_at?:string;rule_content_sha256?:string;[key:string]:any}; signature?:string; [key:string]:any; }
+export interface IntegrationStatus { webhook_configured:boolean; slack_configured:boolean; signing_key_configured:boolean; elasticsearch_configured:boolean; neo4j_configured:boolean; persistence:string; }
 export interface PipelineJob { id:number; run_id:string; rule_path:string; status:"queued"|"running"|"succeeded"|"failed"|"cancelled"; attempts:number; max_attempts:number; available_at:string; locked_by?:string; locked_at?:string; last_error?:string; created_at:string; updated_at:string; }
 
 export function getApiKey(){ if(typeof window==="undefined") return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }
@@ -38,6 +39,7 @@ export async function lintRules(){const result=await post("/lint",{});if(!result
 export function approveRun(id:string){return post(`/runs/${id}/approve`)}
 export function deployRun(id:string){return post(`/runs/${id}/deploy`)}
 
+export function fetchIntegrations(){return fetcher("/integrations") as Promise<IntegrationStatus>}
 export function fetchJobs(){return fetcher("/jobs?limit=500") as Promise<PipelineJob[]>}
 export function retryJob(id:number){return post(`/jobs/${id}/retry`)}
 export function cancelRun(id:string){return post(`/runs/${id}/cancel`)}

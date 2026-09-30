@@ -80,6 +80,8 @@ func executePipelineJob(ctx context.Context, s *Server, workerID string, job *st
 
 	s.PipelineTrigger(job.RunID, job.RulePath)
 	if ctx.Err() != nil { return }
+	currentJob, jobErr := s.Store.GetPipelineJob(ctx, job.ID)
+	if jobErr == nil && currentJob.Status == "cancelled" { return }
 	run, err := s.Store.GetRun(ctx, job.RunID)
 	if err != nil {
 		_ = s.Store.CompletePipelineJob(context.Background(), job.ID, "failed", fmt.Sprintf("reading final run state: %v", err))

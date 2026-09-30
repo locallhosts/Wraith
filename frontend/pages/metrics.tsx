@@ -3,7 +3,7 @@ import PlatformNav from "../components/PlatformNav";
 import {fetchMetrics} from "../lib/api";
 
 type Sample={name:string,value:string,labels:string};
-function parseMetrics(raw:string):Sample[]{return raw.split("\n").filter(line=>line&&!line.startsWith("#")).map(line=>{const m=line.match(/^([^\\s{]+)(?:\\{([^}]*)\\})?\\s+(.+)$/);return m?{name:m[1],labels:m[2]||"",value:m[3]}:null}).filter(Boolean) as Sample[]}
+function parseMetrics(raw:string):Sample[]{return raw.split("\n").filter(line=>line&&!line.startsWith("#")).map(line=>{const m=line.match(/^([^\s{]+)(?:\{([^}]*)\})?\s+(.+)$/);return m?{name:m[1],labels:m[2]||"",value:m[3]}:null}).filter(Boolean) as Sample[]}
 const groups=["wraith_pipeline_runs_total","wraith_pipeline_run_duration_seconds","wraith_rule_false_positive_rate","wraith_rule_robustness_score","wraith_approvals_total","wraith_deploys_total","wraith_webhook_rejections_total"];
 export default function MetricsPage(){
  const [raw,setRaw]=useState("");const [error,setError]=useState("");const [showRaw,setShowRaw]=useState(false);

@@ -1,12 +1,13 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import PlatformNav from "../components/PlatformNav";
+import {fetchHealth,fetchReady} from "../lib/api";
 
 type Probe={status?:string;ready?:boolean;error?:string};
 type Service={name:string;role:string;surface:string;state:"healthy"|"dependency"|"external";detail:string};
 export default function Integrations(){
  const [health,setHealth]=useState<Probe|null>(null);const [ready,setReady]=useState<Probe|null>(null);const [error,setError]=useState("");
- const load=async()=>{try{const [h,r]=await Promise.all([fetch("/api/healthz"),fetch("/api/readyz")]);setHealth(await h.json());setReady(await r.json())}catch(e){setError(e instanceof Error?e.message:"Unable to reach API")}};
+ const load=async()=>{try{const [h,r]=await Promise.all([fetchHealth(),fetchReady()]);setHealth(h);setReady(r)}catch(e){setError(e instanceof Error?e.message:"Unable to reach API")}};
  useEffect(()=>{load();const t=setInterval(load,5000);return()=>clearInterval(t)},[]);
  const services:Service[]=[
   {name:"Go control plane",role:"HTTP API, RBAC, approval and deployment gates",surface:"/healthz",state:"healthy",detail:health?.status==="ok"?"Liveness probe passing":"Waiting for liveness"},

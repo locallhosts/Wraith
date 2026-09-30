@@ -36,6 +36,21 @@ components:
         deployed_at: { type: string, format: date-time, nullable: true }
         started_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    PipelineJob:
+      type: object
+      properties:
+        id: { type: integer }
+        run_id: { type: string }
+        rule_path: { type: string }
+        status: { type: string, enum: [queued, running, succeeded, failed, cancelled] }
+        attempts: { type: integer }
+        max_attempts: { type: integer }
+        available_at: { type: string, format: date-time }
+        locked_by: { type: string }
+        locked_at: { type: string, format: date-time, nullable: true }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
     AuditEntry:
       type: object
       properties:
@@ -203,6 +218,11 @@ paths:
       responses:
         "200":
           description: Pipeline jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PipelineJob" }
   /jobs/{id}/retry:
     post:
       summary: Retry a failed or cancelled pipeline job

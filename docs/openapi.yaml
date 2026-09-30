@@ -199,7 +199,7 @@ paths:
   /jobs:
     get:
       summary: List durable pipeline jobs
-      security: [{ApiKeyAuth: []}]
+      security: [{bearerAuth: []}]
       responses:
         "200":
           description: Pipeline jobs

@@ -196,6 +196,31 @@ paths:
       responses:
         "200": { description: Rule source and lint findings }
         "404": { description: Rule not found }
+  /jobs:
+    get:
+      summary: List durable pipeline jobs
+      security: [{ApiKeyAuth: []}]
+      responses:
+        "200":
+          description: Pipeline jobs
+  /jobs/{id}/retry:
+    post:
+      summary: Retry a failed or cancelled pipeline job
+      security: [{ApiKeyAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer}}
+      responses:
+        "200": {description: Job requeued}
+        "409": {description: Job is not retryable}
+  /runs/{id}/cancel:
+    post:
+      summary: Cancel a queued or running pipeline job
+      security: [{ApiKeyAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200": {description: Run cancelled}
+        "409": {description: Run is terminal}
   /audit:
     get:
       summary: Full audit trail

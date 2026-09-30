@@ -87,7 +87,26 @@ paths:
       responses:
         "200": { description: Accepted, pipeline runs triggered for changed rules }
         "401": { description: Invalid signature }
-  /runs:
+  /integrations:
+    get:
+      summary: Runtime integration configuration state
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Integration configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhook_configured: { type: boolean }
+                  slack_configured: { type: boolean }
+                  signing_key_configured: { type: boolean }
+                  elasticsearch_configured: { type: boolean }
+                  neo4j_configured: { type: boolean }
+                  persistence: { type: string }
+\n  /runs:
     get:
       summary: List recent pipeline runs
       description: Requires role >= viewer

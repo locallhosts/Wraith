@@ -1,17 +1,17 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import PlatformNav from "../components/PlatformNav";
-import {fetchHealth,fetchReady} from "../lib/api";
+import {fetchHealth,fetchReady,fetchIntegrations,IntegrationStatus} from "../lib/api";
 
 type Probe={status?:string;ready?:boolean;error?:string};
 type Service={name:string;role:string;surface:string;state:"healthy"|"dependency"|"external";detail:string};
 export default function Integrations(){
- const [health,setHealth]=useState<Probe|null>(null);const [ready,setReady]=useState<Probe|null>(null);const [error,setError]=useState("");
- const load=async()=>{try{const [h,r]=await Promise.all([fetchHealth(),fetchReady()]);setHealth(h);setReady(r)}catch(e){setError(e instanceof Error?e.message:"Unable to reach API")}};
+ const [health,setHealth]=useState<Probe|null>(null);const [ready,setReady]=useState<Probe|null>(null);const [integration,setIntegration]=useState<IntegrationStatus|null>(null);const [error,setError]=useState("");
+ const load=async()=>{try{const [h,r,i]=await Promise.all([fetchHealth(),fetchReady(),fetchIntegrations()]);setHealth(h);setReady(r);setIntegration(i)}catch(e){setError(e instanceof Error?e.message:"Unable to reach API")}};
  useEffect(()=>{load();const t=setInterval(load,5000);return()=>clearInterval(t)},[]);
  const services:Service[]=[
   {name:"Go control plane",role:"HTTP API, RBAC, approval and deployment gates",surface:"/healthz",state:"healthy",detail:health?.status==="ok"?"Liveness probe passing":"Waiting for liveness"},
-  {name:"PostgreSQL",role:"Durable runs, queue state and audit trail",surface:"/readyz",state:ready?.ready?"healthy":"dependency",detail:ready?.ready?"Store readiness confirmed":"Store readiness unavailable"},
+  {name:"PostgreSQL",role:"Durable runs, queue state and audit trail",surface:"/readyz",state:ready?.ready?"healthy":"dependency",detail:ready?.ready?`Store readiness confirmed · ${integration?.persistence||"unknown persistence"}`:"Store readiness unavailable"},
   {name:"Elasticsearch / OpenSearch",role:"Detection validation and production rule adapter",surface:"SIEM",state:"dependency",detail:"Used by the validation and deployment paths; provider state is surfaced through pipeline evidence."},
   {name:"Neo4j",role:"MITRE ATT&CK attack graph and campaign relationships",surface:"Attack graph",state:"dependency",detail:"Used by the attack simulation stage; results are attached to run evidence."},
   {name:"GitHub",role:"Pull-request webhook trigger and CI integration",surface:"/webhook/github",state:"external",detail:"Webhook receiver is HMAC-verified before rules are queued."},

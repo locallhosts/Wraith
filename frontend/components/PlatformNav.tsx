@@ -6,8 +6,8 @@ const groups = [
  {label:"Detection Engineering",items:[["Rules","/rules"],["Mutation & robustness","/#evidence"],["Quality scoring","/#evidence"]]},
  {label:"Threat Intelligence",items:[["MITRE ATT&CK","/#evidence"],["Attack chains","/#evidence"]]},
  {label:"Validation",items:[["Attack simulation","/#evidence"],["Detection validation","/#evidence"],["Baseline testing","/#evidence"],["Adversarial testing","/#evidence"]]},
- {label:"Integrations",items:[["SIEM / Elasticsearch","/#system"],["Neo4j attack graph","/#system"],["GitHub","/#system"]]},
- {label:"Automation",items:[["SOAR","/#evidence"],["CI/CD","/#system"]]},
+ {label:"Integrations",items:[["Integration health","/integrations"],["SIEM / Elasticsearch","/integrations"],["Neo4j attack graph","/integrations"],["GitHub webhook","/integrations"]]},
+ {label:"Automation",items:[["SOAR","/#evidence"],["CI/CD","/integrations"]]},
  {label:"Governance",items:[["Audit trail","/audit"],["Provenance","/#evidence"],["Approval & deployment","/#evidence"]]},
  {label:"System",items:[["Service health","/#system"],["Prometheus telemetry","/metrics"],["Playground","/playground"]]},
 ];

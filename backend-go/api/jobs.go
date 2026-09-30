@@ -44,6 +44,11 @@ func retryJob(s *Server, c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if run, err := s.Store.GetRun(c.Request.Context(), job.RunID); err == nil {
+		run.Stage = "lint"; run.Passed = nil; run.Reason = ""; run.UpdatedAt = time.Now()
+		_ = s.Store.PutRun(c.Request.Context(), run)
+		_ = s.Store.AppendRunEvent(c.Request.Context(), &store.RunEvent{RunID: run.RunID, Stage: "lint", Level: "info", Message: "pipeline job requeued by operator", CreatedAt: time.Now()})
+	}
 	identity, _ := auth.GetIdentity(c)
 	_ = s.Store.AppendAudit(c.Request.Context(), &store.AuditEntry{
 		Actor: identity.Label, ActorRole: identity.Role, Action: "job.retry",

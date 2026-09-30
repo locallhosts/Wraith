@@ -1,0 +1,17 @@
+import Link from "next/link";
+import PlatformNav from "../components/PlatformNav";
+import ThemeToggle from "../components/ThemeToggle";
+import ApiKeyBar from "../components/ApiKeyBar";
+
+const domains=[
+ {name:"Detection analysis",items:["Rule parsing","Rule comparison","Deterministic fingerprinting","Rule diff","ATT&CK technique extraction","Metadata validation"],href:"/rules"},
+ {name:"Translation",items:["Elasticsearch / OpenSearch","Splunk SPL","Microsoft KQL","CrowdStrike LogScale","Grafana LogQL"],href:"/evidence"},
+ {name:"Validation",items:["Attack simulation","Benign baseline","Detection validation","False-positive measurement"],href:"/evidence"},
+ {name:"Adversarial engineering",items:["Mutation generation","Mutation scoring","Robustness analysis","Undetected variant evidence"],href:"/evidence"},
+ {name:"Threat intelligence",items:["ATT&CK mapping","Attack-chain representation","Navigator-compatible output"],href:"/evidence"},
+ {name:"Engineering assurance",items:["Schema drift","Event correlation","Quality scoring","Compliance mapping"],href:"/evidence"},
+ {name:"Governance",items:["Provenance / attestation","Audit trail","Approval gates","Signed deployment"],href:"/audit"},
+ {name:"Operations",items:["Durable pipeline jobs","Retry / cancellation","Live run events","Prometheus telemetry"],href:"/jobs"},
+ {name:"Integrations",items:["GitHub PR webhook","Elasticsearch","Neo4j","Slack-compatible notifications"],href:"/integrations"},
+];
+export default function Capabilities(){return <main className="min-h-screen bg-[#0a0e13] text-zinc-200"><header className="border-b border-zinc-800 bg-[#0d1117]/95 px-6 py-5 lg:px-10"><div className="mx-auto flex max-w-7xl items-center justify-between"><div><Link href="/" className="text-xl font-semibold tracking-[0.18em]">WRAITH</Link><p className="mt-1 text-xs text-zinc-600">Capability control surface</p></div><div className="flex gap-2"><ThemeToggle/><ApiKeyBar/></div></div></header><div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[210px_1fr] lg:px-10"><aside className="hidden lg:block"><PlatformNav/></aside><section><div className="rounded-xl border border-zinc-800 bg-[#0f141b] p-6"><p className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Engineering surface</p><h1 className="mt-2 text-3xl font-semibold">Capabilities</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-500">One operator surface for the detection lifecycle described by the project: author, analyze, translate, simulate, validate, mutate, measure, attest, approve and deploy.</p></div><div className="mt-6 grid gap-3 md:grid-cols-2">{domains.map(d=><div key={d.name} className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5"><div className="flex items-start justify-between gap-4"><h2 className="text-sm font-semibold">{d.name}</h2><Link href={d.href} className="text-[10px] text-sky-400 hover:underline">Open surface →</Link></div><div className="mt-4 grid gap-2">{d.items.map(x=><div key={x} className="flex items-center gap-2 rounded border border-zinc-900 bg-[#0a0e13] px-3 py-2 text-xs text-zinc-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>{x}</div>)}</div></div>)}</div></section></div></main>}

@@ -13,6 +13,8 @@ export interface RuleDetail { name:string; path:string; passed:boolean; rule:any
 export interface AuditEvent { id:number; actor:string; actor_role:string; action:string; resource:string; detail:string; ip_address?:string; timestamp:string; }
 export interface Session { label:string; role:"viewer"|"analyst"|"lead"|"admin"; }
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown; }
+export interface RunReport { run_id?:string; passed?:boolean; reason?:string; stages: Record<string, any>; [key:string]:any; }
+export interface Attestation { attestation:{issuer?:string;issued_at?:string;rule_content_sha256?:string;[key:string]:any}; signature?:string; [key:string]:any; }
 export interface PipelineJob { id:number; run_id:string; rule_path:string; status:"queued"|"running"|"succeeded"|"failed"|"cancelled"; attempts:number; max_attempts:number; available_at:string; locked_by?:string; locked_at?:string; last_error?:string; created_at:string; updated_at:string; }
 
 export function getApiKey(){ if(typeof window==="undefined") return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }

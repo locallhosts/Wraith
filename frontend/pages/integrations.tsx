@@ -12,10 +12,10 @@ export default function Integrations(){
  const services:Service[]=[
   {name:"Go control plane",role:"HTTP API, RBAC, approval and deployment gates",surface:"/healthz",state:"healthy",detail:health?.status==="ok"?"Liveness probe passing":"Waiting for liveness"},
   {name:"PostgreSQL",role:"Durable runs, queue state and audit trail",surface:"/readyz",state:ready?.ready?"healthy":"dependency",detail:ready?.ready?`Store readiness confirmed · ${integration?.persistence||"unknown persistence"}`:"Store readiness unavailable"},
-  {name:"Elasticsearch / OpenSearch",role:"Detection validation and production rule adapter",surface:"SIEM",state:"dependency",detail:"Used by the validation and deployment paths; provider state is surfaced through pipeline evidence."},
-  {name:"Neo4j",role:"MITRE ATT&CK attack graph and campaign relationships",surface:"Attack graph",state:"dependency",detail:"Used by the attack simulation stage; results are attached to run evidence."},
-  {name:"GitHub",role:"Pull-request webhook trigger and CI integration",surface:"/webhook/github",state:"external",detail:"Webhook receiver is HMAC-verified before rules are queued."},
-  {name:"Slack-compatible notifications",role:"Completion and human approval notifications",surface:"Notifier",state:"external",detail:"Optional webhook integration; delivery failures do not replace the approval gate."},
+  {name:"Elasticsearch / OpenSearch",role:"Detection validation and production rule adapter",surface:"SIEM",state:integration?.elasticsearch_configured?"healthy":"dependency",detail:integration?.elasticsearch_configured?"Validation endpoint configured":"Validation endpoint not configured"},
+  {name:"Neo4j",role:"MITRE ATT&CK attack graph and campaign relationships",surface:"Attack graph",state:integration?.neo4j_configured?"healthy":"dependency",detail:integration?.neo4j_configured?"Graph endpoint configured":"Graph endpoint not configured"},
+  {name:"GitHub",role:"Pull-request webhook trigger and CI integration",surface:"/webhook/github",state:integration?.webhook_configured?"healthy":"dependency",detail:integration?.webhook_configured?"Webhook secret configured and HMAC verification enabled":"Webhook secret not configured"},
+  {name:"Slack-compatible notifications",role:"Completion and human approval notifications",surface:"Notifier",state:integration?.slack_configured?"healthy":"dependency",detail:integration?.slack_configured?"Notification endpoint configured":"Optional notifier not configured"},
   {name:"Prometheus",role:"Runtime and detection-engineering telemetry",surface:"/metrics",state:"healthy",detail:"Metrics endpoint is unauthenticated for scraper compatibility."},
  ];
  return <div className="min-h-screen bg-[#070707] text-zinc-200"><div className="mx-auto grid max-w-[1500px] grid-cols-[220px_1fr] gap-10 px-8 py-8"><PlatformNav/><main>

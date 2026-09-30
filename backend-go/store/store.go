@@ -80,6 +80,9 @@ type Store interface {
 	GetPipelineJob(ctx context.Context, jobID int64) (*PipelineJob, error)
 	ListPipelineJobs(ctx context.Context, limit int) ([]*PipelineJob, error)
 	RetryPipelineJob(ctx context.Context, jobID int64) error
+	GetPipelineJob(ctx context.Context, jobID int64) (*PipelineJob, error)
+	ListPipelineJobs(ctx context.Context, limit int) ([]*PipelineJob, error)
+	RetryPipelineJob(ctx context.Context, jobID int64) error
 	ClaimPipelineJob(ctx context.Context, workerID string, lease time.Duration) (*PipelineJob, error)
 	CompletePipelineJob(ctx context.Context, jobID int64, status, lastError string) error
 	RequeuePipelineJob(ctx context.Context, jobID int64, delay time.Duration, lastError string) error

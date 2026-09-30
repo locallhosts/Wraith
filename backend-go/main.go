@@ -116,6 +116,9 @@ func runServe() {
 		Slack:             slackNotifier,
 		TrustedSigningKey: trustedKey,
 		Log:               logger,
+		ESAddr: cfg.ESAddr,
+		Neo4jAddr: cfg.Neo4jAddr,
+		Persistence: func() string { if cfg.DatabaseURL != "" { return "postgresql" }; return "memory-dev" }(),
 		RateLimit: limiter.Middleware(func(c *gin.Context) string {
 			if id, ok := auth.GetIdentity(c); ok {
 				return id.Label

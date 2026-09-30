@@ -24,6 +24,23 @@ CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs (started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_rule_id ON runs (rule_id);
 CREATE INDEX IF NOT EXISTS idx_runs_repo ON runs (repo);
 
+-- Durable pipeline queue. This mirrors the runtime schema embedded in postgres.go.
+CREATE TABLE IF NOT EXISTS pipeline_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE CASCADE,
+    rule_path TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('queued','running','succeeded','failed','cancelled')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 3,
+    available_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    locked_by TEXT,
+    locked_at TIMESTAMPTZ,
+    last_error TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pipeline_jobs_claim ON pipeline_jobs (status, available_at, id);
+
 -- Append-only audit trail. Every state-changing API call writes here —
 -- see backend-go/audit/audit.go. Rows are never updated or deleted by the
 -- application; retention/archival is an operator concern (e.g. partition

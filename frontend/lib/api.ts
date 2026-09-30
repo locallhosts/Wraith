@@ -13,6 +13,7 @@ export interface RuleDetail { name:string; path:string; passed:boolean; rule:any
 export interface AuditEvent { id:number; actor:string; actor_role:string; action:string; resource:string; detail:string; ip_address?:string; timestamp:string; }
 export interface Session { label:string; role:"viewer"|"analyst"|"lead"|"admin"; }
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown; }
+export interface PipelineJob { id:number; run_id:string; rule_path:string; status:"queued"|"running"|"succeeded"|"failed"|"cancelled"; attempts:number; max_attempts:number; available_at:string; locked_by?:string; locked_at?:string; last_error?:string; created_at:string; updated_at:string; }
 
 export function getApiKey(){ if(typeof window==="undefined") return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }
 export function setApiKey(key:string){ if(typeof window==="undefined") return; if(key) window.localStorage.setItem(API_KEY_STORAGE_KEY,key); else window.localStorage.removeItem(API_KEY_STORAGE_KEY); }
@@ -34,3 +35,8 @@ export function fetchReady(){return fetcher("/readyz") as Promise<HealthStatus>}
 export async function lintRules(){const result=await post("/lint",{});if(!result.ok)throw new Error(result.data?.error||"Lint request failed");return result.data}
 export function approveRun(id:string){return post(`/runs/${id}/approve`)}
 export function deployRun(id:string){return post(`/runs/${id}/deploy`)}
+
+export function fetchJobs(){return fetcher("/jobs?limit=500") as Promise<PipelineJob[]>}
+export function retryJob(id:number){return post(`/jobs/${id}/retry`)}
+export function cancelRun(id:string){return post(`/runs/${id}/cancel`)}
+export async function fetchMetrics(){const res=await fetch(`${API_BASE}/metrics`);if(!res.ok)throw new Error(`Metrics API error ${res.status}`);return res.text()}

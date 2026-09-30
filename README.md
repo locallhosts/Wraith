@@ -458,19 +458,26 @@ The dashboard is intended to expose the actual Wraith control plane rather than 
 
 Current UI surfaces include:
 
-- platform introduction
-- architecture overview
-- validation-run overview
-- run detail
-- pipeline activity
-- capability navigation
-- controlled playground entry point
-- API-key configuration
+- platform overview and architecture
+- complete capability inventory
+- validation-run overview and run detail
+- live execution event timeline
+- durable pipeline job operations
+- retry and cancellation controls
+- rule search, inspection, and linting
+- validation evidence explorer
+- full pipeline report rendering, including additional engine stages
+- signed provenance / attestation evidence
+- approval and deployment gates
+- governance audit trail
+- Prometheus telemetry
+- integration and runtime health
+- GitHub / SIEM / Neo4j / notification integration boundaries
+- controlled playground
+- API-key configuration and role-aware access
 - light/dark theme support
 
-The dashboard reads validation-run state from the Wraith API.
-
-Planned workspaces are explicitly identified as planned rather than represented as completed functionality.
+The dashboard reads validation state from the Wraith API and links operator actions to durable backend records and audit events. The UI is intentionally organized around the same lifecycle as the Python engine rather than presenting disconnected mock SOC screens.
 
 ---
 

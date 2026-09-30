@@ -67,6 +67,11 @@ func cancelRun(s *Server, c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	if updated, err := s.Store.GetRun(c.Request.Context(), runID); err == nil {
+		updated.Stage = "failed"
+		updated.Reason = "pipeline job cancelled by operator"
+		if err := s.Store.PutRun(c.Request.Context(), updated); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+	}
 	identity, _ := auth.GetIdentity(c)
 	_ = s.Store.AppendAudit(c.Request.Context(), &store.AuditEntry{
 		Actor: identity.Label, ActorRole: identity.Role, Action: "run.cancel",

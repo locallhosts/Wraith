@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useState } from "react";
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
-import { fetcher, RunStatus, approveRun, deployRun } from "../../lib/api";
+import { fetcher, RunStatus, approveRun, deployRun, dryRunDeploy, fetchStages } from "../../lib/api";
 import ReportViewer from "../../components/ReportViewer";
 
 function ActionButton({
@@ -34,7 +34,7 @@ export default function RunDetail() {
   const runKey = id ? `/runs/${id}` : null;
   const { data: run, error } = useSWR<RunStatus>(runKey, fetcher, { refreshInterval: 3000 });
   const [actionError, setActionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);\n  const { data: stages } = useSWR<any[]>(runKey ? `${runKey}/stages` : null, fetcher, { refreshInterval: 3000 });\n  const [dryRun, setDryRun] = useState<any>(null);
 
   async function handleApprove() {
     if (!id) return;
@@ -49,7 +49,7 @@ export default function RunDetail() {
     mutate(runKey);
   }
 
-  async function handleDeploy() {
+  async function handleDryRun() { if (!id) return; setBusy(true); setActionError(null); const {ok,data}=await dryRunDeploy(id as string); setBusy(false); if(!ok){setActionError(data.error||"Dry-run failed.");return;} setDryRun(data); }\n\n  async function handleDeploy() {
     if (!id) return;
     setBusy(true);
     setActionError(null);
@@ -125,7 +125,7 @@ export default function RunDetail() {
                 Requires a passing run, a <code className="font-mono">lead</code>+ approval, and a valid
                 cryptographic attestation matching the rule&apos;s current content.
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">\n                <ActionButton label={busy ? "Working…" : "Dry-run"} onClick={handleDryRun} disabled={!!busy || !canDeploy} />
                 <ActionButton
                   label={busy ? "Working…" : "Approve"}
                   onClick={handleApprove}

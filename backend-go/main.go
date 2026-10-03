@@ -126,7 +126,10 @@ func runServe() {
 			return ""
 		}),
 	}
-	srv.PipelineTrigger = api.DefaultPythonPipelineTrigger(srv, cfg.ESAddr, cfg.Neo4jAddr)
+	srv.PipelineTrigger = api.ManagedPythonPipelineTrigger(srv, cfg.ESAddr, cfg.Neo4jAddr)
+	srv.PipelineJobsEnabled = true
+	stopWorkers := api.StartPipelineWorkers(context.Background(), srv, api.PipelineWorkerConfig{Workers: 1})
+	defer stopWorkers()
 
 	router := api.NewRouter(srv)
 	logger.Info("wraith API listening", "port", cfg.Port, "rules_dir", cfg.RulesDir)

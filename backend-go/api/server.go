@@ -46,6 +46,7 @@ type Server struct {
 	ESAddr            string
 	Log               *slog.Logger
 	PipelineTrigger   func(runID, rulePath string)
+	PipelineJobsEnabled bool
 	RateLimit         gin.HandlerFunc // optional, applied globally if set
 	PublicPlayground  bool
 	PublicOrigins     map[string]bool
@@ -172,6 +173,13 @@ func NewRouter(s *Server) *gin.Engine {
 		api.GET("/runs/:id/stages", auth.RequireRole("viewer"), func(c *gin.Context) {
 			listRunStages(s, c)
 		})
+
+		api.GET("/runs/:id/events", auth.RequireRole("viewer"), func(c *gin.Context) { listRunEvents(s, c) })
+		api.GET("/jobs", auth.RequireRole("viewer"), func(c *gin.Context) { listJobs(s, c) })
+		api.POST("/jobs/:id/retry", auth.RequireRole("analyst"), func(c *gin.Context) { retryJob(s, c) })
+		api.GET("/session", auth.RequireRole("viewer"), func(c *gin.Context) { getSession(c) })
+		api.GET("/rules", auth.RequireRole("viewer"), func(c *gin.Context) { listRules(s, c) })
+		api.GET("/rules/:name", auth.RequireRole("viewer"), func(c *gin.Context) { getRule(s, c) })
 
 		api.GET("/runs/:id/attestation", auth.RequireRole("viewer"), func(c *gin.Context) {
 			getRunAttestation(s, c)
@@ -329,7 +337,12 @@ func handleWebhook(s *Server, c *gin.Context) {
 			},
 		)
 
-		if s.PipelineTrigger != nil {
+		if s.PipelineJobsEnabled {
+			if err := s.Store.EnqueuePipelineJob(c.Request.Context(), &store.PipelineJob{RunID: runID, RulePath: res.Path, Status: "queued", MaxAttempts: 3}); err != nil {
+				s.Log.Error("failed to enqueue pipeline job", "run_id", runID, "error", err)
+				continue
+			}
+		} else if s.PipelineTrigger != nil {
 			go s.PipelineTrigger(runID, res.Path)
 		}
 

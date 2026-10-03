@@ -34,6 +34,9 @@ func NewPostgresStore(ctx context.Context, dsn string) (*PostgresStore, error) {
 	if err := p.applySchema(ctx); err != nil {
 		return nil, fmt.Errorf("applying schema: %w", err)
 	}
+	if err := p.applyPipelineSchema(ctx); err != nil {
+		return nil, fmt.Errorf("applying pipeline schema: %w", err)
+	}
 	return p, nil
 }
 

@@ -606,38 +606,41 @@ func DefaultPythonPipelineTrigger(
 
 		update("simulate", nil, "")
 
-		runErr := cmd.Run()
-
-		// Convert the engine's report into append-only stage history. This keeps
-		// the control plane authoritative for execution state while preserving
-		// the engine's detailed report as the evidence artifact.
 		reportPath := fmt.Sprintf("%s/%s/report.json", s.outputDir(), runID)
-		if reportBytes, readErr := os.ReadFile(reportPath); readErr == nil {
-			var report struct {
-				Stages map[string]map[string]any `json:"stages"`
-			}
-			if json.Unmarshal(reportBytes, &report) == nil {
-				for name, raw := range report.Stages {
-					status := "passed"
-					if v, ok := raw["status"].(string); ok {
-						switch v {
-						case "skipped":
-							status = "skipped"
-						case "error", "failed":
-							status = "failed"
-						}
-					} else if v, ok := raw["passed"].(bool); ok && !v {
-						status = "failed"
-					}
-					reason, _ := raw["reason"].(string)
-					now := time.Now()
-					_ = s.Store.AppendRunStage(ctx, &store.RunStage{
-						RunID: runID, Name: name, Status: status,
-						Reason: reason, StartedAt: now, EndedAt: &now,
-					})
+		stageIDs := map[string]int64{}
+		syncStages := func() {
+			reportBytes, readErr := os.ReadFile(reportPath)
+			if readErr != nil { return }
+			var report struct { Stages map[string]map[string]any `json:"stages"` }
+			if json.Unmarshal(reportBytes, &report) != nil { return }
+			for name, raw := range report.Stages {
+				status := "running"
+				if v, ok := raw["status"].(string); ok {
+					switch v { case "passed", "ok": status = "passed"; case "failed", "error": status = "failed"; case "skipped": status = "skipped" }
 				}
+				started := time.Now()
+				if v, ok := raw["started_at"].(float64); ok { started = time.Unix(0, int64(v*float64(time.Second))) }
+				var ended *time.Time
+				if v, ok := raw["ended_at"].(float64); ok { t := time.Unix(0, int64(v*float64(time.Second))); ended = &t }
+				reason, _ := raw["reason"].(string)
+				stage := &store.RunStage{RunID: runID, Name: name, Status: status, Reason: reason, StartedAt: started, EndedAt: ended}
+				if id, ok := stageIDs[name]; ok { stage.ID = id; _ = s.Store.UpdateRunStage(ctx, stage) } else if s.Store.AppendRunStage(ctx, stage) == nil { stageIDs[name] = stage.ID }
 			}
 		}
+		stopSync := make(chan struct{})
+		var syncWG sync.WaitGroup
+		syncWG.Add(1)
+		go func() {
+			defer syncWG.Done()
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			for {
+				select { case <-ticker.C: syncStages(); case <-stopSync: syncStages(); return }
+			}
+		}()
+		runErr := cmd.Run()
+		close(stopSync)
+		syncWG.Wait()
 
 		passed := runErr == nil
 

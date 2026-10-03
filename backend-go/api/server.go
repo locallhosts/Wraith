@@ -643,6 +643,26 @@ func DefaultPythonPipelineTrigger(
 		close(stopSync)
 		syncWG.Wait()
 
+		// If the engine exits before it can close a stage itself (panic,
+		// dependency failure, timeout, or process error), do not leave
+		// persisted stages permanently stuck in "running". The backend is
+		// the authoritative observer of process failure and records the
+		// actual command error as the stage reason.
+		if runErr != nil {
+			if stages, stageErr := s.Store.ListRunStages(ctx, runID); stageErr == nil {
+				ended := time.Now().UTC()
+				for _, stage := range stages {
+					if stage.Status != "running" {
+						continue
+					}
+					stage.Status = "failed"
+					stage.Reason = runErr.Error()
+					stage.EndedAt = &ended
+					_ = s.Store.UpdateRunStage(ctx, stage)
+				}
+			}
+		}
+
 		passed := runErr == nil
 
 		verdict := "passed"

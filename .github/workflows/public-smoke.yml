@@ -1,0 +1,43 @@
+name: Public Deployment Smoke Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Public HTTPS Wraith URL"
+        required: true
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check liveness
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 10 "$BASE_URL/healthz"
+          echo
+      - name: Check readiness
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 10 "$BASE_URL/readyz"
+          echo
+      - name: Check Playground
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --output /tmp/playground.json --write-out "%{http_code}"             --max-time 20             -H 'Content-Type: application/json'             --data '{"rule":"title: Smoke Test\nid: 11111111-1111-4111-8111-111111111111\nstatus: test\ndetection:\n  selection:\n    CommandLine|contains: test\n  condition: selection"}'             "$BASE_URL/playground/validate")
+          test "$status" = "200" || { cat /tmp/playground.json; exit 1; }
+          grep -q '"translated":true' /tmp/playground.json
+      - name: Confirm control plane is protected
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --output /tmp/runs.json --write-out "%{http_code}" --max-time 10 "$BASE_URL/runs")
+          test "$status" = "401" || { cat /tmp/runs.json; exit 1; }

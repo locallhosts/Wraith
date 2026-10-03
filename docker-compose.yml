@@ -71,7 +71,7 @@ services:
       - GITHUB_REPO=${GITHUB_REPO:-}
     volumes:
       - ./rules:/app/rules:ro
-      - ./engine-python:/app/engine-python
+      - ./engine-python:/app/engine-python:ro
       - pipeline_output:/app/engine-python/output
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]

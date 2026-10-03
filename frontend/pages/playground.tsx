@@ -24,11 +24,13 @@ export default function Playground() {
   const [rule, setRule] = useState(example);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function validate(e: FormEvent) {
     e.preventDefault();
     setError("");
     setResult(null);
+    setBusy(true);
     try {
       const api = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
       const key = typeof window === "undefined" ? "" : localStorage.getItem("wraith_api_key") || "";
@@ -42,6 +44,8 @@ export default function Playground() {
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Playground validation failed");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -65,7 +69,8 @@ export default function Playground() {
           </div>
           <textarea value={rule} onChange={(e) => setRule(e.target.value)} spellCheck={false}
             className="min-h-[560px] w-full rounded-md border border-zinc-800 bg-[#090c11] p-4 font-mono text-xs leading-5 text-zinc-300 outline-none focus:border-zinc-600" />
-          <button className="mt-4 rounded-md border border-zinc-700 bg-zinc-100 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-white">Validate & translate</button>
+          <button disabled={busy || rule.length === 0 || rule.length > 256 * 1024} className="mt-4 rounded-md border border-zinc-700 bg-zinc-100 px-4 py-2 text-xs font-semibold text-zinc-900 hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">{busy ? "Validating…" : "Validate & translate"}</button>
+          <div className="mt-2 flex justify-between text-[10px] text-zinc-600"><span>Maximum 256 KiB</span><span>{rule.length.toLocaleString()} bytes</span></div>
         </form>
 
         <section className="rounded-lg border border-zinc-800 bg-[#0f141b] p-5">

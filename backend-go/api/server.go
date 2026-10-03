@@ -46,6 +46,8 @@ type Server struct {
 	Log               *slog.Logger
 	PipelineTrigger   func(runID, rulePath string)
 	RateLimit         gin.HandlerFunc // optional, applied globally if set
+	PublicPlayground  bool
+	PublicOrigins     map[string]bool
 }
 
 func (s *Server) outputDir() string {
@@ -77,11 +79,11 @@ func audit(s store.Store, c *gin.Context, action, resource, detail string) {
 // http://localhost:8080, so the browser requires explicit CORS headers.
 // Authorization requests trigger an OPTIONS preflight request, which must
 // be handled before the authenticated API middleware.
-func localhostCORSMiddleware() gin.HandlerFunc {
+func corsMiddleware(origins map[string]bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader("Origin")
 
-		if origin == "http://localhost:3000" {
+		if origin != "" && origins[origin] {
 			c.Header("Access-Control-Allow-Origin", origin)
 			c.Header("Vary", "Origin")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -110,7 +112,7 @@ func NewRouter(s *Server) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Recovery(), slogMiddleware(s.Log))
-	r.Use(localhostCORSMiddleware())
+	r.Use(corsMiddleware(s.PublicOrigins))
 
 	if s.RateLimit != nil {
 		r.Use(s.RateLimit)
@@ -145,8 +147,7 @@ func NewRouter(s *Server) *gin.Engine {
 
 	// --- Authenticated API surface ---
 
-	api := r.Group("/")
-	api.Use(auth.Middleware(s.Store))
+	// Public Playground: deliberately isolated from the authenticated control plane.\n	if s.PublicPlayground {\n\t\tr.POST("/playground/validate", playgroundValidate)\n\t}\n\n\tapi := r.Group("/")\n\tapi.Use(auth.Middleware(s.Store))
 
 	{
 		api.GET("/runs", auth.RequireRole("viewer"), func(c *gin.Context) {
@@ -189,9 +190,6 @@ func NewRouter(s *Server) *gin.Engine {
 			runLint(s, c)
 		})
 
-		api.POST("/playground/validate", auth.RequireRole("analyst"), func(c *gin.Context) {
-			playgroundValidate(s, c)
-		})
 
 		api.POST("/runs/:id/approve", auth.RequireRole("lead"), func(c *gin.Context) {
 			approveRun(s, c)
@@ -796,7 +794,7 @@ type playgroundRequest struct {
 	Rule string `json:"rule"`
 }
 
-func playgroundValidate(s *Server, c *gin.Context) {
+func playgroundValidate(s *Server, c *gin.Context) {\n\tconst maxRuleBytes = 256 * 1024\n\tc.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
 	var req playgroundRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len([]byte(req.Rule)) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "rule is required"})
@@ -833,8 +831,7 @@ func playgroundValidate(s *Server, c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)
-	cmd.Dir = "."
+	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)\n\tcmd.Dir = "."\n\t// Do not expose API keys, database credentials, signing material, or other\n\t// server environment variables to the untrusted translation subprocess.\n\tcmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "PYTHONUNBUFFERED=1"}
 	output, err := cmd.Output()
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{

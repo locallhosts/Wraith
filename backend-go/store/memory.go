@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"sort"
 	"sync"
 	"time"
@@ -112,3 +113,38 @@ func (m *MemoryStore) GetAPIKey(_ context.Context, keyHash string) (*APIKey, err
 
 func (m *MemoryStore) Ping(_ context.Context) error { return nil }
 func (m *MemoryStore) Close() error                 { return nil }
+
+
+func (m *MemoryStore) ListAPIKeys(_ context.Context) ([]*APIKey, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]*APIKey, 0, len(m.keys))
+	for _, k := range m.keys {
+		cp := *k
+		cp.KeyHash = ""
+		out = append(out, &cp)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].CreatedAt.After(out[j].CreatedAt) })
+	return out, nil
+}
+
+func (m *MemoryStore) CreateAPIKey(_ context.Context, keyHash, label, role string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.keys[keyHash]; exists {
+		return errors.New("api key already exists")
+	}
+	m.keys[keyHash] = &APIKey{KeyHash: keyHash, Label: label, Role: role, CreatedAt: time.Now()}
+	return nil
+}
+
+func (m *MemoryStore) RevokeAPIKey(_ context.Context, keyHash string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	k, ok := m.keys[keyHash]
+	if !ok {
+		return ErrNotFound
+	}
+	k.Revoked = true
+	return nil
+}

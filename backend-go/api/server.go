@@ -835,15 +835,16 @@ func createAPIKey(s *Server, c *gin.Context) {
 	}
 	raw := "wraith_" + base64.RawURLEncoding.EncodeToString(buf)
 	hash := auth.HashKey(raw)
+	keyID := newAPIKeyID()
 
-	if err := s.Store.CreateAPIKey(c.Request.Context(), newAPIKeyID(), hash, req.Label, req.Role); err != nil {
+	if err := s.Store.CreateAPIKey(c.Request.Context(), keyID, hash, req.Label, req.Role); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "could not create API key: " + err.Error()})
 		return
 	}
 	audit(s.Store, c, "apikey.create", req.Label, "created role="+req.Role)
 	c.JSON(http.StatusCreated, gin.H{
 		"label": req.Label,
-		"id": newAPIKeyID(),
+		"id": keyID,
 		"role": req.Role,
 		"api_key": raw,
 		"warning": "The raw API key is returned once. Store it securely; Wraith never stores or returns it again.",

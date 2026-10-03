@@ -117,7 +117,9 @@ func runServe() {
 		TrustedSigningKey: trustedKey,
 		ESAddr:            cfg.ESAddr,
 		Log:               logger,
-		PublicPlayground: cfg.PublicPlayground,\n\t\tPublicOrigins: func() map[string]bool { m := map[string]bool{}; for _, o := range cfg.PublicOrigins { m[o] = true }; return m }(),\n\t\tRateLimit: limiter.Middleware(func(c *gin.Context) string {
+		PublicPlayground: cfg.PublicPlayground,
+		PublicOrigins: func() map[string]bool { m := map[string]bool{}; for _, o := range cfg.PublicOrigins { m[o] = true }; return m }(),
+		RateLimit: limiter.Middleware(func(c *gin.Context) string {
 			if id, ok := auth.GetIdentity(c); ok {
 				return id.Label
 			}

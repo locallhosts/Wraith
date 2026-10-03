@@ -115,6 +115,7 @@ func runServe() {
 		OutputDir:         cfg.OutputDir,
 		Slack:             slackNotifier,
 		TrustedSigningKey: trustedKey,
+		ESAddr:            cfg.ESAddr,
 		Log:               logger,
 		RateLimit: limiter.Middleware(func(c *gin.Context) string {
 			if id, ok := auth.GetIdentity(c); ok {

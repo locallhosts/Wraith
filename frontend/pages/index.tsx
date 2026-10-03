@@ -87,6 +87,7 @@ export default function Home() {
             <div className="mb-4 px-3 text-[10px] uppercase tracking-[0.18em] text-zinc-700">Operations</div>
             <div className="rounded-md border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-zinc-100">Overview</div>
             <a href="#runs" className="block rounded-md px-3 py-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-zinc-300">Runs</a>
+            <Link href="/playground" className="block rounded-md px-3 py-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-zinc-300">Playground</Link>
             <a href="#capabilities" className="block rounded-md px-3 py-2 text-zinc-500 transition hover:bg-zinc-900 hover:text-zinc-300">Capabilities</a>
             <div className="mt-6 mb-2 px-3 text-[10px] uppercase tracking-[0.18em] text-zinc-700">Services</div>
             <div className="flex items-center justify-between rounded-md px-3 py-2 text-zinc-500"><span>API</span><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /></div>

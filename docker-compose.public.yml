@@ -6,6 +6,13 @@ services:
     ports: []
 
   caddy:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     image: caddy:2.10-alpine
     restart: unless-stopped
     environment:

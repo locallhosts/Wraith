@@ -62,6 +62,9 @@ type Store interface {
 	ListAudit(ctx context.Context, limit int) ([]*AuditEntry, error)
 
 	GetAPIKey(ctx context.Context, keyHash string) (*APIKey, error)
+	ListAPIKeys(ctx context.Context) ([]*APIKey, error)
+	CreateAPIKey(ctx context.Context, keyHash, label, role string) error
+	RevokeAPIKey(ctx context.Context, keyHash string) error
 
 	// Ping verifies connectivity, used by the /readyz endpoint.
 	Ping(ctx context.Context) error

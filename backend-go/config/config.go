@@ -6,7 +6,8 @@ package config
 
 import (
 	"os"
-	"strconv"\n\t"strings"
+	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -20,7 +21,9 @@ type Config struct {
 	SlackWebhookURL   string
 	SigningPublicKey  string // base64 ed25519 public key trusted for deploy verification
 	MetricsEnabled    bool
-	RequestsPerMinute int // rate limit per API key\n\tPublicPlayground bool\n\tPublicOrigins []string
+	RequestsPerMinute int // rate limit per API key
+	PublicPlayground bool
+	PublicOrigins []string
 }
 
 func Load() Config {

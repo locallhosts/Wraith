@@ -32,6 +32,16 @@ type RunStatus struct {
 
 // AuditEntry is one append-only record of a state-changing action, kept
 // for compliance/SOC2-style audit trails.
+type RunStage struct {
+	ID        int64     `json:"id"`
+	RunID     string    `json:"run_id"`
+	Name      string    `json:"name"`
+	Status    string    `json:"status"` // running | passed | failed | skipped
+	Reason    string    `json:"reason,omitempty"`
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   *time.Time `json:"ended_at,omitempty"`
+}
+
 type AuditEntry struct {
 	ID        int64     `json:"id"`
 	Actor     string    `json:"actor"`      // API key label or "system"
@@ -57,6 +67,8 @@ type Store interface {
 	PutRun(ctx context.Context, r *RunStatus) error
 	GetRun(ctx context.Context, runID string) (*RunStatus, error)
 	ListRuns(ctx context.Context, limit int) ([]*RunStatus, error)
+	AppendRunStage(ctx context.Context, stage *RunStage) error
+	ListRunStages(ctx context.Context, runID string) ([]*RunStage, error)
 
 	AppendAudit(ctx context.Context, e *AuditEntry) error
 	ListAudit(ctx context.Context, limit int) ([]*AuditEntry, error)

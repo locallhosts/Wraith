@@ -168,7 +168,9 @@ def main():
     # Stage 1: translate
     # ------------------------------------------------------------------
 
-    stage_started = time.time()\n    update_stage(report, out_dir, "translate", "running", stage_started)\n    print("[run_pipeline] translating Sigma rule -> Elasticsearch Query DSL")
+    stage_started = time.time()
+    update_stage(report, out_dir, "translate", "running", stage_started)
+    print("[run_pipeline] translating Sigma rule -> Elasticsearch Query DSL")
 
     query_dsl = sigma_to_es.translate(args.rule)
 
@@ -249,7 +251,8 @@ def main():
     )
 
     update_stage(report, out_dir, "validate", "passed" if verdict["passed"] else "failed", stage_started, **verdict)
-    report["passed"] = verdict["passed"]\n    write_report(out_dir, report)
+    report["passed"] = verdict["passed"]
+    write_report(out_dir, report)
 
     # ------------------------------------------------------------------
     # Stage 5: adversarial robustness fuzzing

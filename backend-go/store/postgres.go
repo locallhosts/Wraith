@@ -142,6 +142,15 @@ func (p *PostgresStore) AppendRunStage(ctx context.Context, stage *RunStage) err
 	`, stage.RunID, stage.Name, stage.Status, stage.Reason, stage.StartedAt, stage.EndedAt).Scan(&stage.ID)
 }
 
+func (p *PostgresStore) UpdateRunStage(ctx context.Context, stage *RunStage) error {
+	res, err := p.db.ExecContext(ctx, `UPDATE run_stages SET status=$1, reason=$2, started_at=$3, ended_at=$4 WHERE id=$5 AND run_id=$6`, stage.Status, stage.Reason, stage.StartedAt, stage.EndedAt, stage.ID)
+	if err != nil { return err }
+	n, err := res.RowsAffected()
+	if err != nil { return err }
+	if n == 0 { return ErrNotFound }
+	return nil
+}
+
 func (p *PostgresStore) ListRunStages(ctx context.Context, runID string) ([]*RunStage, error) {
 	rows, err := p.db.QueryContext(ctx, `
 		SELECT id, run_id, name, status, reason, started_at, ended_at

@@ -196,15 +196,15 @@ func (p *PostgresStore) ListAPIKeys(ctx context.Context) ([]*APIKey, error) {
 	var out []*APIKey
 	for rows.Next() {
 		var k APIKey
-		if err := rows.Scan(&k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked); err != nil { return nil, err }
+		if err := rows.Scan(&k.ID, &k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked); err != nil { return nil, err }
 		k.KeyHash = ""
 		out = append(out, &k)
 	}
 	return out, rows.Err()
 }
 
-func (p *PostgresStore) RevokeAPIKey(ctx context.Context, keyHash string) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE api_keys SET revoked = true WHERE id = $1`, keyHash)
+func (p *PostgresStore) RevokeAPIKey(ctx context.Context, id string) error {
+	res, err := p.db.ExecContext(ctx, `UPDATE api_keys SET revoked = true WHERE id = $1`, id)
 	if err != nil { return err }
 	n, err := res.RowsAffected()
 	if err != nil { return err }
@@ -215,8 +215,8 @@ func (p *PostgresStore) RevokeAPIKey(ctx context.Context, keyHash string) error 
 func (p *PostgresStore) GetAPIKey(ctx context.Context, keyHash string) (*APIKey, error) {
 	var k APIKey
 	err := p.db.QueryRowContext(ctx, `
-		SELECT key_hash, label, role, created_at, revoked FROM api_keys WHERE key_hash = $1
-	`, keyHash).Scan(&k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked)
+		SELECT id, key_hash, label, role, created_at, revoked FROM api_keys WHERE key_hash = $1
+	`, keyHash).Scan(&k.ID, &k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

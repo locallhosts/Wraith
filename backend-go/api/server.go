@@ -511,159 +511,45 @@ func approveRun(s *Server, c *gin.Context) {
 // provenance attestation to verify against the rule's CURRENT on-disk
 // content, closing the "edited after CI passed" gap. Actual index write
 // happens in backend-go/deploy; this handler is glue + audit + metrics.
-func deployRun(s *Server, c *gin.Context) {
-	runID := c.Param("id")
-
-	run, err := s.Store.GetRun(
-		c.Request.Context(),
-		runID,
-	)
-
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "run not found",
-		})
-		return
-	}
-
-	if run.ApprovedBy == "" {
-		metrics.DeploysTotal.WithLabelValues("not_approved").Inc()
-
-		c.JSON(http.StatusConflict, gin.H{
-			"error": deploy.ErrNotApproved.Error(),
-		})
-		return
-	}
-
-	if s.TrustedSigningKey == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "WRAITH_SIGNING_PUBLIC_KEY is not configured — production deploys are disabled",
-		})
-		return
-	}
-
-	attestationPath := fmt.Sprintf(
-		"%s/%s/attestation.json",
-		s.outputDir(),
-		runID,
-	)
-
-	attBytes, err := os.ReadFile(attestationPath)
-	if err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "no attestation found for this run: " + err.Error(),
-		})
-		return
-	}
-
-	var signed provenance.SignedAttestation
-
-	if err := json.Unmarshal(attBytes, &signed); err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "malformed attestation: " + err.Error(),
-		})
-		return
-	}
-
-	currentRule, err := os.ReadFile(run.RulePath)
-	if err != nil {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "could not re-read current rule file: " + err.Error(),
-		})
-		return
-	}
-
-	gate := deploy.Gate{
-		TrustedPublicKey: s.TrustedSigningKey,
-	}
-
-	if err := gate.Check(
-		run.ApprovedBy,
-		&signed,
-		currentRule,
-	); err != nil {
-		metrics.DeploysTotal.WithLabelValues("signature_invalid").Inc()
-
-		audit(
-			s.Store,
-			c,
-			"run.deploy.rejected",
-			runID,
-			err.Error(),
-		)
-
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	if s.ESAddr == "" {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "WRAITH_ES_ADDR is not configured — production deployment is disabled",
-		})
-		return
-	}
-
-	queryPath := fmt.Sprintf("%s/%s/query_dsl.json", s.outputDir(), runID)
-	queryBytes, err := os.ReadFile(queryPath)
-	if err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "no translated query found for this run: " + err.Error(),
-		})
-		return
-	}
-
-	var queryDSL any
-	if err := json.Unmarshal(queryBytes, &queryDSL); err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "translated query is malformed: " + err.Error(),
-		})
-		return
-	}
-
-	es, err := elasticsearch.NewClient(elasticsearch.Config{Addresses: []string{s.ESAddr}})
-	if err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating Elasticsearch client: " + err.Error()})
-		return
-	}
-
-	deployed, err := deploy.Deploy(
-		c.Request.Context(),
-		es,
-		gate,
-		run.ApprovedBy,
-		&signed,
-		queryDSL,
-		currentRule,
-	)
-	if err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		audit(s.Store, c, "run.deploy.rejected", runID, err.Error())
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
-		return
-	}
-
-	now := time.Now()
-	run.DeployedAt = &now
-	run.Stage = "done"
-	if err := s.Store.PutRun(c.Request.Context(), run); err != nil {
-		metrics.DeploysTotal.WithLabelValues("error").Inc()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "persisting deployment state: " + err.Error()})
-		return
-	}
-
-	metrics.DeploysTotal.WithLabelValues("success").Inc()
-	audit(s.Store, c, "run.deploy", runID, "deployed by approval from "+run.ApprovedBy)
-
-	c.JSON(http.StatusOK, gin.H{"deployed": true, "run": run, "rule": deployed})
+func prepareDeployment(s *Server, c *gin.Context) (*store.RunStatus, *provenance.SignedAttestation, []byte, any, *elasticsearch.Client, deploy.Gate, error) {
+	run, err := s.Store.GetRun(c.Request.Context(), c.Param("id"))
+	if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("run not found") }
+	if run.Passed == nil || !*run.Passed { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("only a passing run can be deployed") }
+	if run.ApprovedBy == "" { return nil,nil,nil,nil,nil,deploy.Gate{},deploy.ErrNotApproved }
+	if s.TrustedSigningKey == nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("production signing key is not configured") }
+	if s.ESAddr == "" { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("production deployment target is not configured") }
+	attBytes, err := os.ReadFile(fmt.Sprintf("%s/%s/attestation.json", s.outputDir(), run.RunID)); if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("no attestation found for this run: %w",err) }
+	var signed provenance.SignedAttestation; if err=json.Unmarshal(attBytes,&signed); err!=nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("malformed attestation: %w",err) }
+	if signed.Attestation.RunID != run.RunID || signed.Attestation.RuleID != run.RuleID { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("attestation does not belong to this run/rule") }
+	rule, err := os.ReadFile(run.RulePath); if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("could not read rule: %w",err) }
+	gate:=deploy.Gate{TrustedPublicKey:s.TrustedSigningKey}; if err=gate.Check(run.ApprovedBy,&signed,rule); err!=nil{return nil,nil,nil,nil,nil,gate,err}
+	qb,err:=os.ReadFile(fmt.Sprintf("%s/%s/query_dsl.json",s.outputDir(),run.RunID)); if err!=nil{return nil,nil,nil,nil,nil,gate,fmt.Errorf("no translated query found: %w",err)}
+	var q any; if err=json.Unmarshal(qb,&q);err!=nil{return nil,nil,nil,nil,nil,gate,fmt.Errorf("translated query is malformed: %w",err)}
+	es,err:=elasticsearch.NewClient(elasticsearch.Config{Addresses:[]string{s.ESAddr}});if err!=nil{return nil,nil,nil,nil,nil,gate,err}
+	return run,&signed,rule,q,es,gate,nil
 }
+
+func deployRun(s *Server, c *gin.Context) {
+	run,signed,rule,q,es,gate,err:=prepareDeployment(s,c); if err!=nil { c.JSON(http.StatusConflict,gin.H{"error":err.Error()}); return }
+	deployed,err:=deploy.Deploy(c.Request.Context(),es,gate,run.ApprovedBy,signed,q,rule)
+	if err!=nil { metrics.DeploysTotal.WithLabelValues("error").Inc(); audit(s.Store,c,"run.deploy.rejected",run.RunID,err.Error()); c.JSON(http.StatusUnprocessableEntity,gin.H{"error":err.Error()}); return }
+	if _,err=deploy.Verify(c.Request.Context(),es,run.RuleID,run.RunID,deployed.ContentSHA256);err!=nil { c.JSON(http.StatusBadGateway,gin.H{"error":"deployment verification failed: "+err.Error()}); return }
+	now:=time.Now().UTC(); run.DeployedAt=&now; run.Stage="done"; if err=s.Store.PutRun(c.Request.Context(),run);err!=nil { c.JSON(http.StatusInternalServerError,gin.H{"error":"persisting deployment state: "+err.Error()});return }
+	metrics.DeploysTotal.WithLabelValues("success").Inc(); audit(s.Store,c,"run.deploy",run.RunID,"deployed by approval from "+run.ApprovedBy)
+	c.JSON(http.StatusOK,gin.H{"deployed":true,"run":run,"rule":deployed})
+}
+
+func dryRunDeploy(s *Server,c *gin.Context) {
+	run,signed,rule,q,es,gate,err:=prepareDeployment(s,c);if err!=nil{c.JSON(http.StatusConflict,gin.H{"error":err.Error(),"mutated":false});return}
+	result,err:=deploy.DryRun(c.Request.Context(),es,gate,run.ApprovedBy,signed,q,rule);if err!=nil{audit(s.Store,c,"run.deploy.dry_run.failed",run.RunID,err.Error());c.JSON(http.StatusUnprocessableEntity,gin.H{"error":err.Error(),"mutated":false});return}
+	audit(s.Store,c,"run.deploy.dry_run",run.RunID,"dry-run completed without production mutation");c.JSON(http.StatusOK,result)
+}
+
+func listDeployments(s *Server,c *gin.Context){if s.ESAddr==""{c.JSON(http.StatusServiceUnavailable,gin.H{"error":"deployment target not configured"});return};es,err:=elasticsearch.NewClient(elasticsearch.Config{Addresses:[]string{s.ESAddr}});if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};items,err:=deploy.ListHistory(c.Request.Context(),es,100);if err!=nil{c.JSON(http.StatusBadGateway,gin.H{"error":err.Error()});return};c.JSON(http.StatusOK,items)}
+
+func verifyDeployment(s *Server,c *gin.Context){if s.ESAddr==""{c.JSON(http.StatusServiceUnavailable,gin.H{"error":"deployment target not configured"});return};es,err:=elasticsearch.NewClient(elasticsearch.Config{Addresses:[]string{s.ESAddr}});if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};record,err:=deploy.GetHistory(c.Request.Context(),es,c.Param("id"));if err!=nil{c.JSON(http.StatusNotFound,gin.H{"error":err.Error()});return};var expected deploy.DeployedRule;if err=json.Unmarshal(record.CurrentSource,&expected);err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":"deployment record is malformed"});return};rule,err:=deploy.Verify(c.Request.Context(),es,record.RuleID,record.RunID,expected.ContentSHA256);if err!=nil{c.JSON(http.StatusConflict,gin.H{"verified":false,"error":err.Error(),"deployment":record});return};c.JSON(http.StatusOK,gin.H{"verified":true,"deployment":record,"rule":rule})}
+
+func rollbackDeployment(s *Server,c *gin.Context){if s.ESAddr==""{c.JSON(http.StatusServiceUnavailable,gin.H{"error":"deployment target not configured"});return};es,err:=elasticsearch.NewClient(elasticsearch.Config{Addresses:[]string{s.ESAddr}});if err!=nil{c.JSON(http.StatusInternalServerError,gin.H{"error":err.Error()});return};record,err:=deploy.Rollback(c.Request.Context(),es,c.Param("id"));if err!=nil{audit(s.Store,c,"run.rollback.rejected",c.Param("id"),err.Error());c.JSON(http.StatusConflict,gin.H{"error":err.Error()});return};audit(s.Store,c,"run.rollback",record.RuleID,"rolled back deployment "+record.DeploymentID);c.JSON(http.StatusOK,gin.H{"rolled_back":true,"deployment":record})}
 
 // DefaultPythonPipelineTrigger shells out to the real Python engine, then
 // sends Slack notifications and records metrics on completion.

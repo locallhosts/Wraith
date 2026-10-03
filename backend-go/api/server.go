@@ -149,11 +149,11 @@ func NewRouter(s *Server) *gin.Engine {
 
 	// Public Playground: deliberately isolated from the authenticated control plane.
 	if s.PublicPlayground {
-\t\tr.POST("/playground/validate", playgroundValidate)
-\t}
+		r.POST("/playground/validate", playgroundValidate)
+	}
 
-\tapi := r.Group("/")
-\tapi.Use(auth.Middleware(s.Store))
+	api := r.Group("/")
+	api.Use(auth.Middleware(s.Store))
 
 	{
 		api.GET("/runs", auth.RequireRole("viewer"), func(c *gin.Context) {
@@ -812,8 +812,8 @@ type playgroundRequest struct {
 }
 
 func playgroundValidate(s *Server, c *gin.Context) {
-\tconst maxRuleBytes = 256 * 1024
-\tc.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
+	const maxRuleBytes = 256 * 1024
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
 	var req playgroundRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len([]byte(req.Rule)) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "rule is required"})
@@ -851,10 +851,10 @@ func playgroundValidate(s *Server, c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)
-\tcmd.Dir = "."
-\t// Do not expose API keys, database credentials, signing material, or other
-\t// server environment variables to the untrusted translation subprocess.
-\tcmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "PYTHONUNBUFFERED=1"}
+	cmd.Dir = "."
+	// Do not expose API keys, database credentials, signing material, or other
+	// server environment variables to the untrusted translation subprocess.
+	cmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "PYTHONUNBUFFERED=1"}
 	output, err := cmd.Output()
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{

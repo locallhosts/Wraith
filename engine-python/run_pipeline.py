@@ -248,8 +248,8 @@ def main():
         query_dsl,
     )
 
-    report["stages"]["validate"] = verdict
-    report["passed"] = verdict["passed"]
+    update_stage(report, out_dir, "validate", "passed" if verdict["passed"] else "failed", stage_started, **verdict)
+    report["passed"] = verdict["passed"]\n    write_report(out_dir, report)
 
     # ------------------------------------------------------------------
     # Stage 5: adversarial robustness fuzzing

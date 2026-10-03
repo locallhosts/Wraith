@@ -17,6 +17,7 @@ type MemoryStore struct {
 	mu    sync.RWMutex
 	runs  map[string]*RunStatus
 	audit []*AuditEntry
+	stages map[string][]*RunStage
 	keys  map[string]*APIKey // keyed by sha256 hex of the raw key
 }
 
@@ -24,6 +25,7 @@ func NewMemoryStore() *MemoryStore {
 	m := &MemoryStore{
 		runs: map[string]*RunStatus{},
 		keys: map[string]*APIKey{},
+		stages: map[string][]*RunStage{},
 	}
 	// Seed a default admin dev key so `docker compose up` is usable
 	// out of the box. Rotate/remove this before any real deployment —
@@ -147,4 +149,26 @@ func (m *MemoryStore) RevokeAPIKey(_ context.Context, keyHash string) error {
 	}
 	k.Revoked = true
 	return nil
+}
+
+
+func (m *MemoryStore) AppendRunStage(_ context.Context, stage *RunStage) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	cp := *stage
+	cp.ID = int64(len(m.stages[stage.RunID]) + 1)
+	m.stages[stage.RunID] = append(m.stages[stage.RunID], &cp)
+	return nil
+}
+
+func (m *MemoryStore) ListRunStages(_ context.Context, runID string) ([]*RunStage, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	items := m.stages[runID]
+	out := make([]*RunStage, 0, len(items))
+	for _, item := range items {
+		cp := *item
+		out = append(out, &cp)
+	}
+	return out, nil
 }

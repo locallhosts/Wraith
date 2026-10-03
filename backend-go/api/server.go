@@ -811,6 +811,12 @@ func listAPIKeys(s *Server, c *gin.Context) {
 	c.JSON(http.StatusOK, keys)
 }
 
+func newAPIKeyID() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil { return base64.RawURLEncoding.EncodeToString([]byte(time.Now().UTC().Format(time.RFC3339Nano))) }
+	return base64.RawURLEncoding.EncodeToString(buf)
+}
+
 func createAPIKey(s *Server, c *gin.Context) {
 	var req apiKeyCreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Label == "" {
@@ -830,13 +836,14 @@ func createAPIKey(s *Server, c *gin.Context) {
 	raw := "wraith_" + base64.RawURLEncoding.EncodeToString(buf)
 	hash := auth.HashKey(raw)
 
-	if err := s.Store.CreateAPIKey(c.Request.Context(), hash, req.Label, req.Role); err != nil {
+	if err := s.Store.CreateAPIKey(c.Request.Context(), newAPIKeyID(), hash, req.Label, req.Role); err != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "could not create API key: " + err.Error()})
 		return
 	}
 	audit(s.Store, c, "apikey.create", req.Label, "created role="+req.Role)
 	c.JSON(http.StatusCreated, gin.H{
 		"label": req.Label,
+		"id": newAPIKeyID(),
 		"role": req.Role,
 		"api_key": raw,
 		"warning": "The raw API key is returned once. Store it securely; Wraith never stores or returns it again.",
@@ -844,12 +851,12 @@ func createAPIKey(s *Server, c *gin.Context) {
 }
 
 func revokeAPIKey(s *Server, c *gin.Context) {
-	hash := c.Param("hash")
-	if len(hash) != 64 {
+	id := c.Param("id")
+	if len(id) < 16 || len(id) > 64 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid key identifier"})
 		return
 	}
-	if err := s.Store.RevokeAPIKey(c.Request.Context(), hash); err != nil {
+	if err := s.Store.RevokeAPIKey(c.Request.Context(), id); err != nil {
 		if err == store.ErrNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "API key not found"})
 			return
@@ -857,7 +864,7 @@ func revokeAPIKey(s *Server, c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	audit(s.Store, c, "apikey.revoke", hash, "API key revoked")
+	audit(s.Store, c, "apikey.revoke", id, "API key revoked")
 	c.JSON(http.StatusOK, gin.H{"revoked": true})
 }
 

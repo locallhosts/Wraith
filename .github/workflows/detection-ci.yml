@@ -123,8 +123,23 @@ jobs:
         with:
           go-version: "1.25"
 
+      - name: Write failure evidence
+        if: failure()
+        working-directory: engine-python
+        run: |
+          mkdir -p "output/${RUN_ID}"
+          {
+            echo "WRAITH detection pipeline failed"
+            echo "run_id=${RUN_ID}"
+            echo "rule=${{ matrix.rule_file }}"
+            echo "workflow=${{ github.workflow }}"
+            echo "run_number=${{ github.run_number }}"
+            echo "sha=${{ github.sha }}"
+            echo "job=${{ strategy.job-index }}"
+          } > "output/${RUN_ID}/ci-failure.txt"
+
       - name: Sign provenance attestation
-        if: always()
+        if: success()
         working-directory: backend-go
         env:
           WRAITH_SIGNING_PRIVATE_KEY: ${{ secrets.WRAITH_SIGNING_PRIVATE_KEY }}

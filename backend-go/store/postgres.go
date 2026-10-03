@@ -283,7 +283,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log (actor);
 
 CREATE TABLE IF NOT EXISTS api_keys (
     id          TEXT PRIMARY KEY,
-    key_hash    TEXT PRIMARY KEY,
+    key_hash    TEXT NOT NULL UNIQUE,
     label       TEXT NOT NULL,
     role        TEXT NOT NULL CHECK (role IN ('viewer', 'analyst', 'lead', 'admin')),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),

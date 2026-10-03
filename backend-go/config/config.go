@@ -6,7 +6,7 @@ package config
 
 import (
 	"os"
-	"strconv"
+	"strconv"\n\t"strings"
 )
 
 type Config struct {
@@ -20,7 +20,7 @@ type Config struct {
 	SlackWebhookURL   string
 	SigningPublicKey  string // base64 ed25519 public key trusted for deploy verification
 	MetricsEnabled    bool
-	RequestsPerMinute int // rate limit per API key
+	RequestsPerMinute int // rate limit per API key\n\tPublicPlayground bool\n\tPublicOrigins []string
 }
 
 func Load() Config {
@@ -35,7 +35,7 @@ func Load() Config {
 		SlackWebhookURL:   os.Getenv("WRAITH_SLACK_WEBHOOK_URL"),
 		SigningPublicKey:  os.Getenv("WRAITH_SIGNING_PUBLIC_KEY"),
 		MetricsEnabled:    envBool("WRAITH_METRICS_ENABLED", true),
-		RequestsPerMinute: envInt("WRAITH_RATE_LIMIT_RPM", 120),
+		RequestsPerMinute: envInt("WRAITH_RATE_LIMIT_RPM", 120),\n\t\tPublicPlayground: envBool("WRAITH_PUBLIC_PLAYGROUND", false),\n\t\tPublicOrigins: envList("WRAITH_PUBLIC_ORIGINS", "http://localhost:3000"),
 	}
 }
 
@@ -69,3 +69,4 @@ func envInt(key string, fallback int) int {
 	}
 	return i
 }
+\nfunc envList(key, fallback string) []string {\n\tv := os.Getenv(key)\n\tif v == "" { v = fallback }\n\tvar out []string\n\tfor _, item := range strings.Split(v, ",") {\n\t\tif item = strings.TrimSpace(item); item != "" { out = append(out, item) }\n\t}\n\treturn out\n}\n

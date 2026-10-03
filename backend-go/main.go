@@ -106,7 +106,7 @@ func runServe() {
 		logger.Warn("WRAITH_SIGNING_PUBLIC_KEY is unset — /runs/:id/deploy will be disabled until configured")
 	}
 
-	limiter := ratelimit.New(cfg.RequestsPerMinute)
+	limiter := ratelimit.New(cfg.RequestsPerMinute, cfg.PlaygroundRequestsPerMinute)
 
 	srv := &api.Server{
 		Store:             st,

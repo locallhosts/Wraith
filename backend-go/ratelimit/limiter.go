@@ -69,7 +69,11 @@ func (l *Limiter) Middleware(identityKey func(c *gin.Context) string) gin.Handle
 		if key == "" {
 			key = c.ClientIP()
 		}
+		if c.Request.URL.Path == "/playground/validate" {
+			key = "playground:" + c.ClientIP()
+		}
 		if !l.allow(key) {
+			c.Header("Retry-After", "60")
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "rate limit exceeded, slow down",
 			})

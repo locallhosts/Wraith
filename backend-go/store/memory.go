@@ -162,6 +162,20 @@ func (m *MemoryStore) AppendRunStage(_ context.Context, stage *RunStage) error {
 	return nil
 }
 
+func (m *MemoryStore) UpdateRunStage(_ context.Context, stage *RunStage) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	items := m.stages[stage.RunID]
+	for i, item := range items {
+		if item.ID == stage.ID {
+			cp := *stage
+			items[i] = &cp
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
 func (m *MemoryStore) ListRunStages(_ context.Context, runID string) ([]*RunStage, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

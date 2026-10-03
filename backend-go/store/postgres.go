@@ -135,6 +135,29 @@ func scanRun(row rowScanner) (*RunStatus, error) {
 	return &r, nil
 }
 
+func (p *PostgresStore) AppendRunStage(ctx context.Context, stage *RunStage) error {
+	return p.db.QueryRowContext(ctx, `
+		INSERT INTO run_stages (run_id, name, status, reason, started_at, ended_at)
+		VALUES ($1,$2,$3,$4,$5,$6) RETURNING id
+	`, stage.RunID, stage.Name, stage.Status, stage.Reason, stage.StartedAt, stage.EndedAt).Scan(&stage.ID)
+}
+
+func (p *PostgresStore) ListRunStages(ctx context.Context, runID string) ([]*RunStage, error) {
+	rows, err := p.db.QueryContext(ctx, `
+		SELECT id, run_id, name, status, reason, started_at, ended_at
+		FROM run_stages WHERE run_id = $1 ORDER BY id ASC
+	`, runID)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []*RunStage
+	for rows.Next() {
+		var s RunStage
+		if err := rows.Scan(&s.ID, &s.RunID, &s.Name, &s.Status, &s.Reason, &s.StartedAt, &s.EndedAt); err != nil { return nil, err }
+		out = append(out, &s)
+	}
+	return out, rows.Err()
+}
+
 func (p *PostgresStore) AppendAudit(ctx context.Context, e *AuditEntry) error {
 	return p.db.QueryRowContext(ctx, `
 		INSERT INTO audit_log (actor, actor_role, action, resource, detail, ip_address)
@@ -232,6 +255,17 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs (started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_rule_id ON runs (rule_id);
 CREATE INDEX IF NOT EXISTS idx_runs_repo ON runs (repo);
+
+CREATE TABLE IF NOT EXISTS run_stages (
+    id          BIGSERIAL PRIMARY KEY,
+    run_id      TEXT NOT NULL REFERENCES runs(run_id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    status      TEXT NOT NULL CHECK (status IN ('running','passed','failed','skipped')),
+    reason      TEXT NOT NULL DEFAULT '',
+    started_at  TIMESTAMPTZ NOT NULL,
+    ended_at    TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_run_stages_run_id ON run_stages (run_id, id);
 
 CREATE TABLE IF NOT EXISTS audit_log (
     id          BIGSERIAL PRIMARY KEY,

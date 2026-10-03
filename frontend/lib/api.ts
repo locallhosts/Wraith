@@ -189,3 +189,15 @@ export async function approveRun(runId: string) {
 export async function deployRun(runId: string) {
   return post(`/runs/${runId}/deploy`);
 }
+
+
+export interface PipelineStage { id:number; run_id:string; name:string; status:"running"|"passed"|"failed"|"skipped"; reason?:string; started_at:string; ended_at?:string }
+export interface APIKeyRecord { id:string; label:string; role:string; created_at:string; revoked:boolean }
+export async function fetchStages(runId:string):Promise<PipelineStage[]> { return fetcher(`/runs/${runId}/stages`); }
+export async function dryRunDeploy(runId:string) { return post(`/runs/${runId}/deploy/dry-run`); }
+export async function fetchDeployments():Promise<any[]> { return fetcher("/deployments"); }
+export async function verifyDeployment(id:string) { return fetcher(`/deployments/${id}/verify`); }
+export async function rollbackDeployment(id:string) { return post(`/deployments/${id}/rollback`); }
+export async function fetchAPIKeys():Promise<APIKeyRecord[]> { return fetcher("/api-keys"); }
+export async function createAPIKey(label:string, role:string) { return post("/api-keys",{label,role}); }
+export async function revokeAPIKey(id:string) { return post(`/api-keys/${id}/revoke`); }

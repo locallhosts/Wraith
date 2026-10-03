@@ -136,18 +136,13 @@ func Deploy(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy
 	return &rule, nil
 }
 
-func DryRun(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy string, signed *provenance.SignedAttestation, currentRuleYAML []byte) (map[string]any, error) {
+func DryRun(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy string, signed *provenance.SignedAttestation, queryDSL any, currentRuleYAML []byte) (map[string]any, error) {
 	if err := gate.Check(approvedBy, signed, currentRuleYAML); err != nil { return nil, err }
-	current, err := readCurrent(ctx, es, signed.Attestation.RuleID)
-	if err != nil { return nil, err }
-	result := map[string]any{"would_deploy":true,"mutated":false,"rule_id":signed.Attestation.RuleID,"run_id":signed.Attestation.RunID,"content_sha256":hashRule(currentRuleYAML),"already_deployed":false}
-	if current != nil {
-		var prev DeployedRule
-		if json.Unmarshal(current, &prev) == nil && prev.RunID == signed.Attestation.RunID && prev.ContentSHA256 == hashRule(currentRuleYAML) {
-			result["would_deploy"] = false
-			result["already_deployed"] = true
-		}
-	}
+	current, err := readCurrent(ctx, es, signed.Attestation.RuleID); if err != nil { return nil, err }
+	hash := hashRule(currentRuleYAML)
+	result := map[string]any{"would_deploy": true, "mutated": false, "rule_id": signed.Attestation.RuleID, "run_id": signed.Attestation.RunID, "content_sha256": hash, "already_deployed": false, "query_valid": true}
+	if current != nil { var prev DeployedRule; if json.Unmarshal(current, &prev) == nil && prev.RunID == signed.Attestation.RunID && prev.ContentSHA256 == hash { result["would_deploy"] = false; result["already_deployed"] = true } }
+	if queryDSL != nil { res, err := es.Indices.ValidateQuery(es.Indices.ValidateQuery.WithContext(ctx), es.Indices.ValidateQuery.WithIndex(ProductionIndex), es.Indices.ValidateQuery.WithBody(jsonReader(map[string]any{"query": queryDSL}))); if err != nil { return nil, fmt.Errorf("validating deployment query: %w", err) }; defer res.Body.Close(); if res.IsError() { body,_:=io.ReadAll(io.LimitReader(res.Body,8<<10)); return nil, fmt.Errorf("deployment query validation rejected: HTTP %s: %s",res.Status(),string(body)) }; var vr struct { Valid bool `json:"valid"` }; if err := json.NewDecoder(res.Body).Decode(&vr); err != nil { return nil, fmt.Errorf("decoding query validation: %w", err) }; result["query_valid"] = vr.Valid; if !vr.Valid { result["would_deploy"] = false } }
 	return result, nil
 }
 

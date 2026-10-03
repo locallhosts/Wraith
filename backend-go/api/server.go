@@ -180,7 +180,7 @@ func NewRouter(s *Server) *gin.Engine {
 			createAPIKey(s, c)
 		})
 
-		api.POST("/api-keys/:hash/revoke", auth.RequireRole("admin"), func(c *gin.Context) {
+		api.POST("/api-keys/:id/revoke", auth.RequireRole("admin"), func(c *gin.Context) {
 			revokeAPIKey(s, c)
 		})
 
@@ -196,9 +196,11 @@ func NewRouter(s *Server) *gin.Engine {
 			approveRun(s, c)
 		})
 
-		api.POST("/runs/:id/deploy", auth.RequireRole("lead"), func(c *gin.Context) {
-			deployRun(s, c)
-		})
+		api.POST("/runs/:id/deploy/dry-run", auth.RequireRole("lead"), func(c *gin.Context) { dryRunDeploy(s, c) })
+		api.POST("/runs/:id/deploy", auth.RequireRole("lead"), func(c *gin.Context) { deployRun(s, c) })
+		api.GET("/deployments", auth.RequireRole("viewer"), func(c *gin.Context) { listDeployments(s, c) })
+		api.GET("/deployments/:id/verify", auth.RequireRole("viewer"), func(c *gin.Context) { verifyDeployment(s, c) })
+		api.POST("/deployments/:id/rollback", auth.RequireRole("lead"), func(c *gin.Context) { rollbackDeployment(s, c) })
 	}
 
 	return r

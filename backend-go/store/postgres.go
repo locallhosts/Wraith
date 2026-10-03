@@ -228,10 +228,10 @@ func (p *PostgresStore) Close() error                   { return p.db.Close() }
 
 // CreateAPIKey is a convenience used by the `wraith apikey create` CLI
 // command. Returns nothing sensitive — the caller already has the raw key.
-func (p *PostgresStore) CreateAPIKey(ctx context.Context, keyHash, label, role string) error {
+func (p *PostgresStore) CreateAPIKey(ctx context.Context, id, keyHash, label, role string) error {
 	_, err := p.db.ExecContext(ctx, `
-		INSERT INTO api_keys (key_hash, label, role) VALUES ($1,$2,$3)
-	`, keyHash, label, role)
+		INSERT INTO api_keys (id, key_hash, label, role) VALUES ($1,$2,$3,$4)
+	`, id, keyHash, label, role)
 	return err
 }
 

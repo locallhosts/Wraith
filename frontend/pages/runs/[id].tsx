@@ -34,7 +34,9 @@ export default function RunDetail() {
   const runKey = id ? `/runs/${id}` : null;
   const { data: run, error } = useSWR<RunStatus>(runKey, fetcher, { refreshInterval: 3000 });
   const [actionError, setActionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);\n  const { data: stages } = useSWR<any[]>(runKey ? `${runKey}/stages` : null, fetcher, { refreshInterval: 3000 });\n  const [dryRun, setDryRun] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const { data: stages } = useSWR<any[]>(runKey ? `${runKey}/stages` : null, fetcher, { refreshInterval: 3000 });
+  const [dryRun, setDryRun] = useState<any>(null);
 
   async function handleApprove() {
     if (!id) return;
@@ -49,7 +51,9 @@ export default function RunDetail() {
     mutate(runKey);
   }
 
-  async function handleDryRun() { if (!id) return; setBusy(true); setActionError(null); const {ok,data}=await dryRunDeploy(id as string); setBusy(false); if(!ok){setActionError(data.error||"Dry-run failed.");return;} setDryRun(data); }\n\n  async function handleDeploy() {
+  async function handleDryRun() { if (!id) return; setBusy(true); setActionError(null); const {ok,data}=await dryRunDeploy(id as string); setBusy(false); if(!ok){setActionError(data.error||"Dry-run failed.");return;} setDryRun(data); }
+
+  async function handleDeploy() {
     if (!id) return;
     setBusy(true);
     setActionError(null);
@@ -125,7 +129,8 @@ export default function RunDetail() {
                 Requires a passing run, a <code className="font-mono">lead</code>+ approval, and a valid
                 cryptographic attestation matching the rule&apos;s current content.
               </p>
-              <div className="flex flex-wrap gap-3">\n                <ActionButton label={busy ? "Working…" : "Dry-run"} onClick={handleDryRun} disabled={!!busy || !canDeploy} />
+              <div className="flex flex-wrap gap-3">
+                <ActionButton label={busy ? "Working…" : "Dry-run"} onClick={handleDryRun} disabled={!!busy || !canDeploy} />
                 <ActionButton
                   label={busy ? "Working…" : "Approve"}
                   onClick={handleApprove}
@@ -144,6 +149,8 @@ export default function RunDetail() {
               )}
             </div>
 
+            {dryRun && <div className="rounded border border-zinc-800 p-5"><h2 className="text-sm font-medium text-zinc-300">Deployment dry-run</h2><pre className="mt-3 max-h-72 overflow-auto rounded bg-zinc-950 p-3 text-xs text-zinc-500">{JSON.stringify(dryRun, null, 2)}</pre></div>}
+            <div className="rounded border border-zinc-800 p-5"><h2 className="mb-3 text-sm font-medium text-zinc-300">Live pipeline stages</h2><div className="space-y-2">{(stages ?? []).map((stage:any)=><div key={stage.id} className="flex items-center justify-between rounded bg-zinc-950 px-3 py-2"><div><span className="font-mono text-xs text-zinc-300">{stage.name}</span>{stage.reason&&<p className="mt-1 text-[11px] text-zinc-600">{stage.reason}</p>}</div><span className={`text-[11px] uppercase ${stage.status==="passed"?"text-emerald-400":stage.status==="failed"?"text-rose-400":stage.status==="running"?"text-amber-300":"text-zinc-500"}`}>{stage.status}</span></div>)}</div></div>
             <ReportViewer runId={id as string} />
           </div>
         )}

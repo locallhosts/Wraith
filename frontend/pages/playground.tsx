@@ -1,6 +1,5 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { fetcher } from "../lib/api";
 
 const example = `title: Suspicious PowerShell Execution
 id: 11111111-1111-4111-8111-111111111111
@@ -31,8 +30,6 @@ export default function Playground() {
     setError("");
     setResult(null);
     try {
-      const res = await fetcher("/playground/validate");
-      void res;
       const api = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
       const key = typeof window === "undefined" ? "" : localStorage.getItem("wraith_api_key") || "";
       const response = await fetch(api + "/playground/validate", {

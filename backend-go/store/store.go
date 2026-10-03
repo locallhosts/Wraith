@@ -55,6 +55,7 @@ type AuditEntry struct {
 
 // APIKey represents one issued credential and the role it carries.
 type APIKey struct {
+	ID        string    `json:"id"`
 	KeyHash   string    `json:"-"` // never serialized
 	Label     string    `json:"label"`
 	Role      string    `json:"role"`
@@ -75,8 +76,8 @@ type Store interface {
 
 	GetAPIKey(ctx context.Context, keyHash string) (*APIKey, error)
 	ListAPIKeys(ctx context.Context) ([]*APIKey, error)
-	CreateAPIKey(ctx context.Context, keyHash, label, role string) error
-	RevokeAPIKey(ctx context.Context, keyHash string) error
+	CreateAPIKey(ctx context.Context, id, keyHash, label, role string) error
+	RevokeAPIKey(ctx context.Context, id string) error
 
 	// Ping verifies connectivity, used by the /readyz endpoint.
 	Ping(ctx context.Context) error

@@ -147,7 +147,13 @@ func NewRouter(s *Server) *gin.Engine {
 
 	// --- Authenticated API surface ---
 
-	// Public Playground: deliberately isolated from the authenticated control plane.\n	if s.PublicPlayground {\n\t\tr.POST("/playground/validate", playgroundValidate)\n\t}\n\n\tapi := r.Group("/")\n\tapi.Use(auth.Middleware(s.Store))
+	// Public Playground: deliberately isolated from the authenticated control plane.
+	if s.PublicPlayground {
+\t\tr.POST("/playground/validate", playgroundValidate)
+\t}
+
+\tapi := r.Group("/")
+\tapi.Use(auth.Middleware(s.Store))
 
 	{
 		api.GET("/runs", auth.RequireRole("viewer"), func(c *gin.Context) {
@@ -805,7 +811,9 @@ type playgroundRequest struct {
 	Rule string `json:"rule"`
 }
 
-func playgroundValidate(s *Server, c *gin.Context) {\n\tconst maxRuleBytes = 256 * 1024\n\tc.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
+func playgroundValidate(s *Server, c *gin.Context) {
+\tconst maxRuleBytes = 256 * 1024
+\tc.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
 	var req playgroundRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len([]byte(req.Rule)) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "rule is required"})
@@ -842,7 +850,11 @@ func playgroundValidate(s *Server, c *gin.Context) {\n\tconst maxRuleBytes = 256
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)\n\tcmd.Dir = "."\n\t// Do not expose API keys, database credentials, signing material, or other\n\t// server environment variables to the untrusted translation subprocess.\n\tcmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "PYTHONUNBUFFERED=1"}
+	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)
+\tcmd.Dir = "."
+\t// Do not expose API keys, database credentials, signing material, or other
+\t// server environment variables to the untrusted translation subprocess.
+\tcmd.Env = []string{"PATH=/usr/local/bin:/usr/bin:/bin", "PYTHONUNBUFFERED=1"}
 	output, err := cmd.Output()
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{

@@ -130,25 +130,26 @@ func (m *MemoryStore) ListAPIKeys(_ context.Context) ([]*APIKey, error) {
 	return out, nil
 }
 
-func (m *MemoryStore) CreateAPIKey(_ context.Context, keyHash, label, role string) error {
+func (m *MemoryStore) CreateAPIKey(_ context.Context, id, keyHash, label, role string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.keys[keyHash]; exists {
 		return errors.New("api key already exists")
 	}
-	m.keys[keyHash] = &APIKey{KeyHash: keyHash, Label: label, Role: role, CreatedAt: time.Now()}
+	m.keys[keyHash] = &APIKey{ID: id, KeyHash: keyHash, Label: label, Role: role, CreatedAt: time.Now()}
 	return nil
 }
 
-func (m *MemoryStore) RevokeAPIKey(_ context.Context, keyHash string) error {
+func (m *MemoryStore) RevokeAPIKey(_ context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	k, ok := m.keys[keyHash]
-	if !ok {
-		return ErrNotFound
+	for _, k := range m.keys {
+		if k.ID == id {
+			k.Revoked = true
+			return nil
+		}
 	}
-	k.Revoked = true
-	return nil
+	return ErrNotFound
 }
 
 

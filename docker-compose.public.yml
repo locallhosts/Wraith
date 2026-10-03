@@ -24,3 +24,5 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+# The public deployment only publishes Caddy. Internal services stay on the Compose network.

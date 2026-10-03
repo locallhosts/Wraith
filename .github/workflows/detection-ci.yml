@@ -124,7 +124,7 @@ jobs:
           go-version: "1.25"
 
       - name: Sign provenance attestation
-        if: always()
+        if: success()
         working-directory: backend-go
         env:
           WRAITH_SIGNING_PRIVATE_KEY: ${{ secrets.WRAITH_SIGNING_PRIVATE_KEY }}

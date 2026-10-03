@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -82,14 +83,21 @@ func Deploy(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy
 		AttestationSig: signed.Signature,
 	}
 
-	if _, err := es.Index(
+	res, err := es.Index(
 		"wraith-rules-production",
 		jsonReader(rule),
 		es.Index.WithDocumentID(rule.RuleID),
 		es.Index.WithContext(ctx),
 		es.Index.WithRefresh("true"),
-	); err != nil {
+	)
+	if err != nil {
 		return nil, fmt.Errorf("indexing deployed rule: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.IsError() {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+		return nil, fmt.Errorf("production rule index rejected deployment: HTTP %s: %s", res.Status(), string(body))
 	}
 
 	return &rule, nil

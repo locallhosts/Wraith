@@ -11,6 +11,7 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrNoJobAvailable = errors.New("no pipeline job available")
 
 // RunStatus tracks one end-to-end pipeline execution for a rule/PR.
 type RunStatus struct {
@@ -42,6 +43,30 @@ type RunStage struct {
 	EndedAt   *time.Time `json:"ended_at,omitempty"`
 }
 
+type RunEvent struct {
+	ID int64 `json:"id"`
+	RunID string `json:"run_id"`
+	Stage string `json:"stage"`
+	Level string `json:"level"`
+	Message string `json:"message"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type PipelineJob struct {
+	ID int64 `json:"id"`
+	RunID string `json:"run_id"`
+	RulePath string `json:"rule_path"`
+	Status string `json:"status"`
+	Attempts int `json:"attempts"`
+	MaxAttempts int `json:"max_attempts"`
+	AvailableAt time.Time `json:"available_at"`
+	LockedBy string `json:"locked_by,omitempty"`
+	LockedAt *time.Time `json:"locked_at,omitempty"`
+	LastError string `json:"last_error,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type AuditEntry struct {
 	ID        int64     `json:"id"`
 	Actor     string    `json:"actor"`      // API key label or "system"
@@ -71,6 +96,17 @@ type Store interface {
 	AppendRunStage(ctx context.Context, stage *RunStage) error
 	UpdateRunStage(ctx context.Context, stage *RunStage) error
 	ListRunStages(ctx context.Context, runID string) ([]*RunStage, error)
+
+	AppendRunEvent(ctx context.Context, e *RunEvent) error
+	ListRunEvents(ctx context.Context, runID string, limit int) ([]*RunEvent, error)
+	EnqueuePipelineJob(ctx context.Context, j *PipelineJob) error
+	GetPipelineJob(ctx context.Context, jobID int64) (*PipelineJob, error)
+	ListPipelineJobs(ctx context.Context, limit int) ([]*PipelineJob, error)
+	RetryPipelineJob(ctx context.Context, jobID int64) error
+	ClaimPipelineJob(ctx context.Context, workerID string, lease time.Duration) (*PipelineJob, error)
+	CompletePipelineJob(ctx context.Context, jobID int64, status, lastError string) error
+	RequeuePipelineJob(ctx context.Context, jobID int64, delay time.Duration, lastError string) error
+	CancelPipelineJob(ctx context.Context, runID string) error
 
 	AppendAudit(ctx context.Context, e *AuditEntry) error
 	ListAudit(ctx context.Context, limit int) ([]*AuditEntry, error)

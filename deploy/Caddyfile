@@ -1,0 +1,15 @@
+{$WRAITH_DOMAIN} {
+	encode gzip
+
+	# Public Playground endpoint and authenticated control-plane API.
+	@api path /playground/validate /runs* /deployments* /api-keys* /audit* /lint* /healthz /readyz /webhook/github
+	handle @api {
+		reverse_proxy backend:8080
+	}
+
+	# Never expose Prometheus metrics through the public browser endpoint.
+	# The fallback serves only the Next.js UI.
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

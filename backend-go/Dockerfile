@@ -19,5 +19,8 @@ RUN pip install --no-cache-dir -r engine-python/requirements.txt
 COPY rules ./rules
 COPY engine-python ./engine-python
 
+RUN useradd --system --uid 10001 --create-home wraith && chown -R wraith:wraith /app /usr/local/bin/wraith
+USER wraith
+
 EXPOSE 8080
 ENTRYPOINT ["wraith", "serve"]

@@ -69,6 +69,7 @@ type Store interface {
 	GetRun(ctx context.Context, runID string) (*RunStatus, error)
 	ListRuns(ctx context.Context, limit int) ([]*RunStatus, error)
 	AppendRunStage(ctx context.Context, stage *RunStage) error
+	UpdateRunStage(ctx context.Context, stage *RunStage) error
 	ListRunStages(ctx context.Context, runID string) ([]*RunStage, error)
 
 	AppendAudit(ctx context.Context, e *AuditEntry) error

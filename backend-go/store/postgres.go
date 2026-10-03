@@ -298,4 +298,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     revoked     BOOLEAN NOT NULL DEFAULT false
 );
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS id TEXT;
+UPDATE api_keys SET id = md5(key_hash) WHERE id IS NULL;
+ALTER TABLE api_keys ALTER COLUMN id SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_id ON api_keys (id);
 `

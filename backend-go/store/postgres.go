@@ -166,6 +166,29 @@ func (p *PostgresStore) ListAudit(ctx context.Context, limit int) ([]*AuditEntry
 	return out, rows.Err()
 }
 
+func (p *PostgresStore) ListAPIKeys(ctx context.Context) ([]*APIKey, error) {
+	rows, err := p.db.QueryContext(ctx, `SELECT key_hash, label, role, created_at, revoked FROM api_keys ORDER BY created_at DESC`)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	var out []*APIKey
+	for rows.Next() {
+		var k APIKey
+		if err := rows.Scan(&k.KeyHash, &k.Label, &k.Role, &k.CreatedAt, &k.Revoked); err != nil { return nil, err }
+		k.KeyHash = ""
+		out = append(out, &k)
+	}
+	return out, rows.Err()
+}
+
+func (p *PostgresStore) RevokeAPIKey(ctx context.Context, keyHash string) error {
+	res, err := p.db.ExecContext(ctx, `UPDATE api_keys SET revoked = true WHERE key_hash = $1`, keyHash)
+	if err != nil { return err }
+	n, err := res.RowsAffected()
+	if err != nil { return err }
+	if n == 0 { return ErrNotFound }
+	return nil
+}
+
 func (p *PostgresStore) GetAPIKey(ctx context.Context, keyHash string) (*APIKey, error) {
 	var k APIKey
 	err := p.db.QueryRowContext(ctx, `

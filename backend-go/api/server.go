@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"os/exec"
 	"sync"
 	"time"
@@ -822,6 +823,10 @@ type playgroundRequest struct {
 
 func playgroundValidate(s *Server, c *gin.Context) {
 	const maxRuleBytes = 256 * 1024
+	if c.GetHeader("Content-Type") != "application/json" && !strings.HasPrefix(c.GetHeader("Content-Type"), "application/json;") {
+		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Content-Type must be application/json"})
+		return
+	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxRuleBytes+4096)
 	var req playgroundRequest
 	if err := c.ShouldBindJSON(&req); err != nil || len([]byte(req.Rule)) == 0 {

@@ -91,7 +91,7 @@ func corsMiddleware(origins map[string]bool) gin.HandlerFunc {
 		}
 
 		if c.Request.Method == http.MethodOptions {
-			if origin == "http://localhost:3000" {
+			if origins[origin] {
 				c.AbortWithStatus(http.StatusNoContent)
 				return
 			}

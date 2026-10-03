@@ -32,7 +32,7 @@ export default function Playground() {
     setResult(null);
     setBusy(true);
     try {
-      const api = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
+      const api = process.env.NEXT_PUBLIC_API_BASE || "";
       const key = typeof window === "undefined" ? "" : localStorage.getItem("wraith_api_key") || "";
       const response = await fetch(api + "/playground/validate", {
         method: "POST",

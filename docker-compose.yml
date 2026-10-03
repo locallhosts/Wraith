@@ -43,6 +43,13 @@ services:
       retries: 10
 
   backend:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     build:
       context: .
       dockerfile: backend-go/Dockerfile
@@ -66,6 +73,11 @@ services:
       - ./rules:/app/rules:ro
       - ./engine-python:/app/engine-python
       - pipeline_output:/app/engine-python/output
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -75,10 +87,22 @@ services:
         condition: service_healthy
 
   frontend:
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     build:
       context: ./frontend
     environment:
       - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8080}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     depends_on:
       - backend
 

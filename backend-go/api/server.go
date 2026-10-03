@@ -188,6 +188,10 @@ func NewRouter(s *Server) *gin.Engine {
 			runLint(s, c)
 		})
 
+		api.POST("/playground/validate", auth.RequireRole("analyst"), func(c *gin.Context) {
+			playgroundValidate(s, c)
+		})
+
 		api.POST("/runs/:id/approve", auth.RequireRole("lead"), func(c *gin.Context) {
 			approveRun(s, c)
 		})
@@ -865,4 +869,73 @@ func listRunStages(s *Server, c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, stages)
+}
+
+
+type playgroundRequest struct {
+	Rule string `json:"rule"`
+}
+
+func playgroundValidate(s *Server, c *gin.Context) {
+	var req playgroundRequest
+	if err := c.ShouldBindJSON(&req); err != nil || len([]byte(req.Rule)) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rule is required"})
+		return
+	}
+	if len([]byte(req.Rule)) > 256*1024 {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "rule exceeds 256 KiB limit"})
+		return
+	}
+
+	linted, err := linter.LintBytes("playground.yml", []byte(req.Rule))
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	if !linted.Passed() {
+		audit(s.Store, c, "playground.validate", "playground", "lint rejected rule")
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"lint": linted, "translated": false})
+		return
+	}
+
+	tmpDir, err := os.MkdirTemp("", "wraith-playground-")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating isolated playground workspace"})
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	rulePath := tmpDir + "/rule.yml"
+	if err := os.WriteFile(rulePath, []byte(req.Rule), 0600); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "writing isolated playground rule"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "python3", "engine-python/sigma_to_es.py", rulePath)
+	cmd.Dir = "."
+	output, err := cmd.Output()
+	if err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"lint": linted,
+			"translated": false,
+			"error": "Sigma translation failed: " + err.Error(),
+		})
+		return
+	}
+
+	var dsl any
+	if err := json.Unmarshal(output, &dsl); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "translator returned malformed JSON"})
+		return
+	}
+
+	audit(s.Store, c, "playground.validate", "playground", "offline lint + Sigma-to-ES translation; no production writes")
+	c.JSON(http.StatusOK, gin.H{
+		"lint": linted,
+		"translated": true,
+		"query_dsl": dsl,
+		"execution": "offline",
+	})
 }

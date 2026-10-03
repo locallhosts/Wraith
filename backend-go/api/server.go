@@ -160,6 +160,10 @@ func NewRouter(s *Server) *gin.Engine {
 			getRunReport(s, c)
 		})
 
+		api.GET("/runs/:id/stages", auth.RequireRole("viewer"), func(c *gin.Context) {
+			listRunStages(s, c)
+		})
+
 		api.GET("/runs/:id/attestation", auth.RequireRole("viewer"), func(c *gin.Context) {
 			getRunAttestation(s, c)
 		})
@@ -820,4 +824,14 @@ func revokeAPIKey(s *Server, c *gin.Context) {
 	}
 	audit(s.Store, c, "apikey.revoke", hash, "API key revoked")
 	c.JSON(http.StatusOK, gin.H{"revoked": true})
+}
+
+
+func listRunStages(s *Server, c *gin.Context) {
+	stages, err := s.Store.ListRunStages(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, stages)
 }

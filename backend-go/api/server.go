@@ -111,7 +111,7 @@ func NewRouter(s *Server) *gin.Engine {
 
 	r := gin.New()
 
-	r.Use(gin.Recovery(), slogMiddleware(s.Log), securityHeadersMiddleware())
+	r.Use(gin.Recovery(), slogMiddleware(s.Log), securityHeadersMiddleware(), requestTimeoutMiddleware(30*time.Second))
 	r.Use(corsMiddleware(s.PublicOrigins))
 
 	if s.RateLimit != nil {
@@ -209,6 +209,15 @@ func NewRouter(s *Server) *gin.Engine {
 	}
 
 	return r
+}
+
+func requestTimeoutMiddleware(timeout time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
+		defer cancel()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+	}
 }
 
 func securityHeadersMiddleware() gin.HandlerFunc {

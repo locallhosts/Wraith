@@ -21,7 +21,8 @@ type Config struct {
 	SlackWebhookURL   string
 	SigningPublicKey  string // base64 ed25519 public key trusted for deploy verification
 	MetricsEnabled    bool
-	RequestsPerMinute int // rate limit per API key
+	RequestsPerMinute int // rate limit per authenticated identity
+	PlaygroundRequestsPerMinute int // tighter anonymous Playground limit
 	PublicPlayground bool
 	PublicOrigins []string
 }
@@ -39,6 +40,7 @@ func Load() Config {
 		SigningPublicKey:  os.Getenv("WRAITH_SIGNING_PUBLIC_KEY"),
 		MetricsEnabled:    envBool("WRAITH_METRICS_ENABLED", true),
 		RequestsPerMinute: envInt("WRAITH_RATE_LIMIT_RPM", 120),
+		PlaygroundRequestsPerMinute: envInt("WRAITH_PLAYGROUND_RPM", 30),
 		PublicPlayground: envBool("WRAITH_PUBLIC_PLAYGROUND", false),
 		PublicOrigins: envList("WRAITH_PUBLIC_ORIGINS", "http://localhost:3000"),
 	}

@@ -20,35 +20,58 @@ type bucket struct {
 }
 
 type Limiter struct {
-	mu         sync.Mutex
-	buckets    map[string]*bucket
-	ratePerMin float64
-	capacity   float64
+	mu                    sync.Mutex
+	buckets               map[string]*bucket
+	ratePerMin            float64
+	capacity              float64
+	playgroundRatePerMin  float64
+	playgroundCapacity    float64
+	lastCleanup           time.Time
 }
 
-func New(requestsPerMinute int) *Limiter {
+func New(requestsPerMinute int, playgroundRequestsPerMinute ...int) *Limiter {
+	if requestsPerMinute < 1 {
+		requestsPerMinute = 1
+	}
+	playgroundRPM := requestsPerMinute
+	if len(playgroundRequestsPerMinute) > 0 && playgroundRequestsPerMinute[0] > 0 {
+		playgroundRPM = playgroundRequestsPerMinute[0]
+	}
 	return &Limiter{
-		buckets:    map[string]*bucket{},
-		ratePerMin: float64(requestsPerMinute),
-		capacity:   float64(requestsPerMinute),
+		buckets:              map[string]*bucket{},
+		ratePerMin:           float64(requestsPerMinute),
+		capacity:              float64(requestsPerMinute),
+		playgroundRatePerMin: float64(playgroundRPM),
+		playgroundCapacity:   float64(playgroundRPM),
+		lastCleanup:          time.Now(),
 	}
 }
 
-func (l *Limiter) allow(key string) bool {
+func (l *Limiter) allow(key string, ratePerMin, capacity float64) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	b, ok := l.buckets[key]
 	now := time.Now()
+	if now.Sub(l.lastCleanup) >= 5*time.Minute && len(l.buckets) > 10000 {
+		cutoff := now.Add(-10 * time.Minute)
+		for k, b := range l.buckets {
+			if b.lastRefill.Before(cutoff) {
+				delete(l.buckets, k)
+			}
+		}
+		l.lastCleanup = now
+	}
+
+	b, ok := l.buckets[key]
 	if !ok {
-		b = &bucket{tokens: l.capacity - 1, lastRefill: now}
+		b = &bucket{tokens: capacity - 1, lastRefill: now}
 		l.buckets[key] = b
 		return true
 	}
 
 	elapsed := now.Sub(b.lastRefill).Minutes()
-	b.tokens += elapsed * l.ratePerMin
-	if b.tokens > l.capacity {
+	b.tokens += elapsed * ratePerMin
+	if b.tokens > capacity {
 		b.tokens = l.capacity
 	}
 	b.lastRefill = now
@@ -71,8 +94,17 @@ func (l *Limiter) Middleware(identityKey func(c *gin.Context) string) gin.Handle
 		}
 		if c.Request.URL.Path == "/playground/validate" {
 			key = "playground:" + c.ClientIP()
+			if !l.allow(key, l.playgroundRatePerMin, l.playgroundCapacity) {
+				c.Header("Retry-After", "60")
+				c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+					"error": "Playground rate limit exceeded, slow down",
+				})
+				return
+			}
+			c.Next()
+			return
 		}
-		if !l.allow(key) {
+		if !l.allow(key, l.ratePerMin, l.capacity) {
 			c.Header("Retry-After", "60")
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "rate limit exceeded, slow down",

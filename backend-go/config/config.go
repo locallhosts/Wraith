@@ -35,7 +35,9 @@ func Load() Config {
 		SlackWebhookURL:   os.Getenv("WRAITH_SLACK_WEBHOOK_URL"),
 		SigningPublicKey:  os.Getenv("WRAITH_SIGNING_PUBLIC_KEY"),
 		MetricsEnabled:    envBool("WRAITH_METRICS_ENABLED", true),
-		RequestsPerMinute: envInt("WRAITH_RATE_LIMIT_RPM", 120),\n\t\tPublicPlayground: envBool("WRAITH_PUBLIC_PLAYGROUND", false),\n\t\tPublicOrigins: envList("WRAITH_PUBLIC_ORIGINS", "http://localhost:3000"),
+		RequestsPerMinute: envInt("WRAITH_RATE_LIMIT_RPM", 120),
+		PublicPlayground: envBool("WRAITH_PUBLIC_PLAYGROUND", false),
+		PublicOrigins: envList("WRAITH_PUBLIC_ORIGINS", "http://localhost:3000"),
 	}
 }
 
@@ -69,4 +71,13 @@ func envInt(key string, fallback int) int {
 	}
 	return i
 }
-\nfunc envList(key, fallback string) []string {\n\tv := os.Getenv(key)\n\tif v == "" { v = fallback }\n\tvar out []string\n\tfor _, item := range strings.Split(v, ",") {\n\t\tif item = strings.TrimSpace(item); item != "" { out = append(out, item) }\n\t}\n\treturn out\n}\n
+
+func envList(key, fallback string) []string {
+	v := os.Getenv(key)
+	if v == "" { v = fallback }
+	var out []string
+	for _, item := range strings.Split(v, ",") {
+		if item = strings.TrimSpace(item); item != "" { out = append(out, item) }
+	}
+	return out
+}

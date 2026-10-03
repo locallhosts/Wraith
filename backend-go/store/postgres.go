@@ -190,7 +190,7 @@ func (p *PostgresStore) ListAudit(ctx context.Context, limit int) ([]*AuditEntry
 }
 
 func (p *PostgresStore) ListAPIKeys(ctx context.Context) ([]*APIKey, error) {
-	rows, err := p.db.QueryContext(ctx, `SELECT key_hash, label, role, created_at, revoked FROM api_keys ORDER BY created_at DESC`)
+	rows, err := p.db.QueryContext(ctx, `SELECT id, key_hash, label, role, created_at, revoked FROM api_keys ORDER BY created_at DESC`)
 	if err != nil { return nil, err }
 	defer rows.Close()
 	var out []*APIKey
@@ -204,7 +204,7 @@ func (p *PostgresStore) ListAPIKeys(ctx context.Context) ([]*APIKey, error) {
 }
 
 func (p *PostgresStore) RevokeAPIKey(ctx context.Context, keyHash string) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE api_keys SET revoked = true WHERE key_hash = $1`, keyHash)
+	res, err := p.db.ExecContext(ctx, `UPDATE api_keys SET revoked = true WHERE id = $1`, keyHash)
 	if err != nil { return err }
 	n, err := res.RowsAffected()
 	if err != nil { return err }
@@ -282,6 +282,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_log (resource);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log (actor);
 
 CREATE TABLE IF NOT EXISTS api_keys (
+    id          TEXT PRIMARY KEY,
     key_hash    TEXT PRIMARY KEY,
     label       TEXT NOT NULL,
     role        TEXT NOT NULL CHECK (role IN ('viewer', 'analyst', 'lead', 'admin')),

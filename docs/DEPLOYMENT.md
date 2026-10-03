@@ -173,3 +173,71 @@ certain settings) default to CRLF, and CRLF in `.sh`/`Makefile`/YAML files
 causes exactly the kind of "works locally, fails in CI" bug this whole
 pipeline exists to prevent in detection rules — no reason to reintroduce
 it in the tooling around them.
+
+
+## Stage 4 — Public browser Playground
+
+Wraith includes a real public Playground boundary. It is intentionally **not** the
+same trust boundary as the authenticated control plane.
+
+When `WRAITH_PUBLIC_PLAYGROUND=true`:
+
+- `POST /playground/validate` is anonymous and rate-limited by client IP.
+- All control-plane routes remain behind API-key authentication and RBAC.
+- Request bodies are capped before JSON parsing.
+- Sigma input is linted before translation.
+- Translation runs in a temporary 0600 workspace with a 15-second timeout.
+- The translation subprocess receives a minimal environment and does not inherit
+  database credentials, API keys, signing material, or other server secrets.
+- The Playground never connects to production Elasticsearch or Neo4j.
+- Exact CORS origins are configured through `WRAITH_PUBLIC_ORIGINS`; wildcard
+  origins are intentionally not supported.
+- Baseline browser security headers are emitted by the Go API.
+
+For a first public deployment using the included Docker stack:
+
+1. Point DNS for your chosen hostname at the deployment host.
+2. Set these values in `.env`:
+
+```text
+WRAITH_DOMAIN=playground.example.com
+WRAITH_PUBLIC_PLAYGROUND=true
+WRAITH_PUBLIC_ORIGINS=https://playground.example.com
+NEXT_PUBLIC_API_BASE=https://playground.example.com
+WRAITH_DATABASE_URL=<real PostgreSQL DSN>
+WRAITH_POSTGRES_PASSWORD=<strong random password>
+WRAITH_WEBHOOK_SECRET=<real GitHub webhook secret>
+```
+
+3. Start the stack with the HTTPS reverse proxy:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.public.yml up -d --build
+```
+
+Caddy obtains and renews the TLS certificate automatically once the hostname
+resolves to the server and ports 80/443 are reachable.
+
+The public surface is intentionally narrow: the browser reaches the Next.js UI
+and the explicitly routed API endpoints, while PostgreSQL, Elasticsearch,
+Neo4j, and Prometheus metrics are not published by the public reverse proxy.
+
+### Before calling the service production-ready
+
+Run the backend and frontend tests, then verify:
+
+```bash
+curl -i https://playground.example.com/healthz
+curl -i -X POST https://playground.example.com/playground/validate \
+  -H 'Content-Type: application/json' \
+  --data '{"rule":"title: Test"}'
+curl -i https://playground.example.com/runs
+```
+
+The second request should return a validation response without authentication.
+The third request should return `401 Unauthorized`. That distinction is an
+important deployment invariant: public Playground access must never imply public
+control-plane access.
+
+Do not expose port 8080, 3000, 9200, 7474, or 7687 directly to the Internet in
+the public deployment. The Caddy container is the intended external entry point.

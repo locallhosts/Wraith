@@ -46,9 +46,16 @@ CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_log (actor);
 -- API keys are stored as SHA-256 hashes only — the raw key is shown to the
 -- operator exactly once at creation time (see `wraith apikey create`).
 CREATE TABLE IF NOT EXISTS api_keys (
-    key_hash    TEXT PRIMARY KEY,
+    id          TEXT PRIMARY KEY,
+    key_hash    TEXT NOT NULL UNIQUE,
     label       TEXT NOT NULL,
     role        TEXT NOT NULL CHECK (role IN ('viewer', 'analyst', 'lead', 'admin')),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     revoked     BOOLEAN NOT NULL DEFAULT false
 );
+
+-- Production-safe upgrade for installations created before API-key IDs were introduced.
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS id TEXT;
+UPDATE api_keys SET id = md5(key_hash) WHERE id IS NULL;
+ALTER TABLE api_keys ALTER COLUMN id SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_api_keys_id ON api_keys (id);

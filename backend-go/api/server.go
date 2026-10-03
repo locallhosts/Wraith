@@ -337,7 +337,12 @@ func handleWebhook(s *Server, c *gin.Context) {
 			},
 		)
 
-		if s.PipelineTrigger != nil {
+		if s.PipelineJobsEnabled {
+			if err := s.Store.EnqueuePipelineJob(c.Request.Context(), &store.PipelineJob{RunID: runID, RulePath: res.Path, Status: "queued", MaxAttempts: 3}); err != nil {
+				s.Log.Error("failed to enqueue pipeline job", "run_id", runID, "error", err)
+				continue
+			}
+		} else if s.PipelineTrigger != nil {
 			go s.PipelineTrigger(runID, res.Path)
 		}
 

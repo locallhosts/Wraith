@@ -411,13 +411,23 @@ func runAPIKey() {
 	}
 	defer pg.Close()
 
-	if err := pg.CreateAPIKey(ctx, hash, label, role); err != nil {
+	keyID := generateAPIKeyID()
+	if err := pg.CreateAPIKey(ctx, keyID, hash, label, role); err != nil {
 		fmt.Fprintln(os.Stderr, "creating key:", err)
 		os.Exit(1)
 	}
 
 	fmt.Println("# This is the ONLY time the raw key is shown. Store it securely now.")
 	fmt.Println("WRAITH_API_KEY=" + raw)
+}
+
+func generateAPIKeyID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		fmt.Fprintln(os.Stderr, "generating API key id:", err)
+		os.Exit(1)
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func generateRandomKey() string {

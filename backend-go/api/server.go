@@ -716,6 +716,37 @@ func DefaultPythonPipelineTrigger(
 
 		runErr := cmd.Run()
 
+		// Convert the engine's report into append-only stage history. This keeps
+		// the control plane authoritative for execution state while preserving
+		// the engine's detailed report as the evidence artifact.
+		reportPath := fmt.Sprintf("%s/%s/report.json", s.outputDir(), runID)
+		if reportBytes, readErr := os.ReadFile(reportPath); readErr == nil {
+			var report struct {
+				Stages map[string]map[string]any `json:"stages"`
+			}
+			if json.Unmarshal(reportBytes, &report) == nil {
+				for name, raw := range report.Stages {
+					status := "passed"
+					if v, ok := raw["status"].(string); ok {
+						switch v {
+						case "skipped":
+							status = "skipped"
+						case "error", "failed":
+							status = "failed"
+						}
+					} else if v, ok := raw["passed"].(bool); ok && !v {
+						status = "failed"
+					}
+					reason, _ := raw["reason"].(string)
+					now := time.Now()
+					_ = s.Store.AppendRunStage(ctx, &store.RunStage{
+						RunID: runID, Name: name, Status: status,
+						Reason: reason, StartedAt: now, EndedAt: &now,
+					})
+				}
+			}
+		}
+
 		passed := runErr == nil
 
 		verdict := "passed"

@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/locallhosts/Wraith/backend-go/auth"
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/locallhosts/Wraith/backend-go/deploy"
 	"github.com/locallhosts/Wraith/backend-go/linter"
 	"github.com/locallhosts/Wraith/backend-go/metrics"
@@ -38,6 +39,7 @@ type Server struct {
 	OutputDir         string // where engine-python/run_pipeline.py writes report.json / attestation.json per run
 	Slack             *notify.SlackNotifier
 	TrustedSigningKey ed25519.PublicKey // nil disables the deploy endpoint
+	ESAddr            string
 	Log               *slog.Logger
 	PipelineTrigger   func(runID, rulePath string)
 	RateLimit         gin.HandlerFunc // optional, applied globally if set
@@ -576,30 +578,69 @@ func deployRun(s *Server, c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
+	if s.ESAddr == "" {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "WRAITH_ES_ADDR is not configured — production deployment is disabled",
+		})
+		return
+	}
 
+	queryPath := fmt.Sprintf("%s/%s/query_dsl.json", s.outputDir(), runID)
+	queryBytes, err := os.ReadFile(queryPath)
+	if err != nil {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "no translated query found for this run: " + err.Error(),
+		})
+		return
+	}
+
+	var queryDSL any
+	if err := json.Unmarshal(queryBytes, &queryDSL); err != nil {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "translated query is malformed: " + err.Error(),
+		})
+		return
+	}
+
+	es, err := elasticsearch.NewClient(elasticsearch.Config{Addresses: []string{s.ESAddr}})
+	if err != nil {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "creating Elasticsearch client: " + err.Error()})
+		return
+	}
+
+	deployed, err := deploy.Deploy(
+		c.Request.Context(),
+		es,
+		gate,
+		run.ApprovedBy,
+		&signed,
+		queryDSL,
+		currentRule,
+	)
+	if err != nil {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		audit(s.Store, c, "run.deploy.rejected", runID, err.Error())
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+
+	now := time.Now()
 	run.DeployedAt = &now
 	run.Stage = "done"
-
-	_ = s.Store.PutRun(
-		c.Request.Context(),
-		run,
-	)
+	if err := s.Store.PutRun(c.Request.Context(), run); err != nil {
+		metrics.DeploysTotal.WithLabelValues("error").Inc()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "persisting deployment state: " + err.Error()})
+		return
+	}
 
 	metrics.DeploysTotal.WithLabelValues("success").Inc()
+	audit(s.Store, c, "run.deploy", runID, "deployed by approval from "+run.ApprovedBy)
 
-	audit(
-		s.Store,
-		c,
-		"run.deploy",
-		runID,
-		"deployed by approval from "+run.ApprovedBy,
-	)
-
-	c.JSON(http.StatusOK, gin.H{
-		"deployed": true,
-		"run":      run,
-	})
+	c.JSON(http.StatusOK, gin.H{"deployed": true, "run": run, "rule": deployed})
 }
 
 // DefaultPythonPipelineTrigger shells out to the real Python engine, then

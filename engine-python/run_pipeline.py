@@ -50,6 +50,21 @@ import quality_score
 SUPPORTED_TARGET_OS = ("windows", "linux", "macos")
 
 
+def write_report(out_dir: Path, report: dict) -> None:
+    (out_dir / "report.json").write_text(json.dumps(report, indent=2))
+
+
+def update_stage(report: dict, out_dir: Path, name: str, status: str, started: float, reason: str | None = None, **extra):
+    stage = {"status": status, "started_at": started}
+    if status in ("passed", "failed", "skipped"):
+        stage["ended_at"] = time.time()
+    if reason:
+        stage["reason"] = reason
+    stage.update(extra)
+    report["stages"][name] = stage
+    write_report(out_dir, report)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run the full WRAITH detection-testing pipeline for one rule"
@@ -146,13 +161,14 @@ def main():
             "target_os_source": target_os_source,
         },
         "stages": {},
+        "status": "running",
     }
 
     # ------------------------------------------------------------------
     # Stage 1: translate
     # ------------------------------------------------------------------
 
-    print("[run_pipeline] translating Sigma rule -> Elasticsearch Query DSL")
+    stage_started = time.time()\n    update_stage(report, out_dir, "translate", "running", stage_started)\n    print("[run_pipeline] translating Sigma rule -> Elasticsearch Query DSL")
 
     query_dsl = sigma_to_es.translate(args.rule)
 

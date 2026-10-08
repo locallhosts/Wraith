@@ -22,7 +22,7 @@ jobs:
           args: "-fmt sarif -out gosec-results.sarif ./backend-go/..."
 
       - name: Upload gosec SARIF
-        if: always()
+        if: always() && hashFiles('gosec-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec-results.sarif
@@ -105,7 +105,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif

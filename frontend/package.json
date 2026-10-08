@@ -9,7 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "16.3.5",
+    "next": "16.4.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "swr": "2.2.5"
@@ -21,5 +21,9 @@
     "autoprefixer": "10.4.19",
     "postcss": "8.5.28",
     "tailwindcss": "3.4.3"
+  },
+  "overrides": {
+    "braces": "3.0.3",
+    "postcss-selector-parser": "7.1.6"
   }
 }

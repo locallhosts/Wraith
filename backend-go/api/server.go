@@ -151,7 +151,7 @@ func NewRouter(s *Server) *gin.Engine {
 
 	// Public Playground: deliberately isolated from the authenticated control plane.
 	if s.PublicPlayground {
-		r.POST("/playground/validate", playgroundValidate)
+		r.POST("/playground/validate", func(c *gin.Context) { playgroundValidate(s, c) })
 	}
 
 	api := r.Group("/")

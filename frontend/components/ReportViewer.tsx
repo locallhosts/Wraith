@@ -43,12 +43,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function ReportViewer({ runId }: { runId: string }) {
   const { data: report, error: reportError } = useSWR<RunReport>(
-    `/runs/${runId}/report`,
+    `/runs/${encodeURIComponent(runId)}/report`,
     fetcher,
     { refreshInterval: 5000 }
   );
   const { data: attestation } = useSWR<Attestation>(
-    report?.passed ? `/runs/${runId}/attestation` : null,
+    report?.passed ? `/runs/${encodeURIComponent(runId)}/attestation` : null,
     fetcher
   );
 
@@ -157,18 +157,18 @@ export default function ReportViewer({ runId }: { runId: string }) {
       {attestation && (
         <Section title="Signed provenance attestation">
           <div className="grid grid-cols-2 gap-y-2 text-xs">
-            <span className="text-zinc-500">Issuer</span>
-            <span className="text-zinc-300">{attestation.attestation.issuer}</span>
-            <span className="text-zinc-500">Issued at</span>
-            <span className="text-zinc-300">{new Date(attestation.attestation.issued_at).toLocaleString()}</span>
-            <span className="text-zinc-500">Rule content hash</span>
-            <span className="truncate font-mono text-zinc-400" title={attestation.attestation.rule_content_sha256}>
-              {attestation.attestation.rule_content_sha256}
-            </span>
+            <span className="text-zinc-500">Schema version</span><span className="text-zinc-300">{attestation.attestation.schema_version}</span>
+            <span className="text-zinc-500">Run ID</span><span className="break-all font-mono text-zinc-300">{attestation.attestation.run_id}</span>
+            <span className="text-zinc-500">Issuer</span><span className="text-zinc-300">{attestation.attestation.issuer}</span>
+            <span className="text-zinc-500">Issued at</span><span className="text-zinc-300">{new Date(attestation.attestation.issued_at).toLocaleString()}</span>
+            <span className="text-zinc-500">Rule content hash (SHA-256)</span>
+            <span className="break-all font-mono text-zinc-400" title={attestation.attestation.rule_content_sha256}>{attestation.attestation.rule_content_sha256}</span>
+            <span className="text-zinc-500">Baseline events</span><span className="text-zinc-300">{attestation.attestation.baseline_events_n.toLocaleString()}</span>
+            <span className="text-zinc-500">False-positive rate</span><span className="text-zinc-300">{(attestation.attestation.false_positive_rate * 100).toFixed(2)}%</span>
+            <span className="text-zinc-500">Robustness score</span><span className="text-zinc-300">{(attestation.attestation.robustness_score * 100).toFixed(1)}%</span>
+            <span className="text-zinc-500">Tested techniques</span><span className="text-zinc-300">{attestation.attestation.tested_techniques.length ? attestation.attestation.tested_techniques.join(", ") : "None recorded"}</span>
             <span className="text-zinc-500">Signature</span>
-            <span className="truncate font-mono text-zinc-400" title={attestation.signature}>
-              {attestation.signature.slice(0, 24)}…
-            </span>
+            <span className="break-all font-mono text-zinc-400" title={attestation.signature}>{attestation.signature.slice(0, 24)}…</span>
           </div>
           <p className="mt-3 text-xs text-zinc-600">
             This is a display copy only — the deploy gate independently re-verifies this signature

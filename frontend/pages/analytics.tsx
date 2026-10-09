@@ -34,7 +34,7 @@ function ActivityChart({ runs }: { runs: RunStatus[] }) {
   const points = days.map((day, index) => `${(index * step) + step / 2},${plotTop + plotHeight - (day.count / max) * plotHeight}`).join(" ");
   return (
     <div className="analytics-chart">
-      <div className="chart-legend"><span><i className="legend-cyan" />Validation runs</span><span><i className="legend-rose" />Failed runs</span></div>
+      <div className="chart-legend"><span><i className="legend-cyan" />Validation runs</span></div>
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Validation runs over the last seven days" className="activity-svg">
         {[0, 1, 2, 3].map((line) => <line key={line} x1="0" x2={width} y1={plotTop + line * (plotHeight / 3)} y2={plotTop + line * (plotHeight / 3)} stroke="#1d2733" strokeDasharray="3 5" />)}
         <polyline points={points} fill="none" stroke="#38d9ff" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />

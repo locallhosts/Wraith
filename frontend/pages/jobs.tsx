@@ -4,8 +4,8 @@ import useSWR from "swr";
 import WraithShell from "../components/WraithShell";
 import StatusBadge from "../components/security/StatusBadge";
 import { fetcher, JobRecord, retryPipelineJob } from "../lib/api";
+import { filterJobs, JobFilter } from "../lib/filters";
 
-type JobFilter = "all" | "queued" | "running" | "failed" | "complete";
 function formatTime(value?: string) {
   if (!value) return "—";
   const date = new Date(value);
@@ -27,19 +27,7 @@ export default function JobsPage() {
     complete: (jobs ?? []).filter(job => job.status === "completed" || job.status === "done").length,
   }), [jobs]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return [...(jobs ?? [])].filter(job => {
-      const matchesText = !q || [job.id, job.run_id, job.rule_path, job.status, job.last_error]
-        .some(value => String(value ?? "").toLowerCase().includes(q));
-      const matchesFilter = filter === "all"
-        || (filter === "queued" && job.status === "queued")
-        || (filter === "running" && job.status === "running")
-        || (filter === "failed" && (job.status === "failed" || job.status === "cancelled"))
-        || (filter === "complete" && (job.status === "completed" || job.status === "done"));
-      return matchesText && matchesFilter;
-    }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
-  }, [jobs, query, filter]);
+  const filtered = useMemo(() => filterJobs(jobs ?? [], query, filter), [jobs, query, filter]);
 
   async function retry(job: JobRecord) {
     if (job.id === undefined || job.id === null) return;

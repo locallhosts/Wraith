@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "next": "16.4.0",
@@ -19,7 +20,8 @@
     "@types/react": "18.3.1",
     "typescript": "5.4.5",
     "autoprefixer": "10.4.19",
-    "postcss": "8.5.28"
+    "postcss": "8.5.28",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "postcss-selector-parser": "7.1.6"

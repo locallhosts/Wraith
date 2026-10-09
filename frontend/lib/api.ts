@@ -1,5 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-const API_KEY_STORAGE_KEY = "wraith_api_key";
+// Keep credentials in memory only: browser storage is readable by injected JavaScript.
+let inMemoryApiKey = "";
 
 export interface RunStatus { run_id:string; rule_path:string; rule_id:string; rule_title:string; repo:string; pr_number:number; stage:"lint"|"provision"|"simulate"|"validate"|"soar"|"done"|"failed"; passed?:boolean; reason?:string; approved_by?:string; approved_at?:string; deployed_at?:string; started_at:string; updated_at:string; }
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown }
@@ -8,8 +9,8 @@ export interface RuleDetail { passed?:boolean; content?:string; rule?:{id?:strin
 export interface JobRecord { id?:number|string; run_id?:string; rule_path?:string; status?:string; stage?:string; attempts?:number; max_attempts?:number; available_at?:string; last_error?:string; created_at?:string; updated_at?:string; [key:string]:unknown }
 export interface SessionInfo { authenticated?:boolean; label?:string; role?:string; [key:string]:unknown }
 export interface AuditEvent { [key:string]:unknown }
-export function getApiKey():string { if(typeof window==="undefined")return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }
-export function setApiKey(key:string){ if(typeof window==="undefined")return; if(key)window.localStorage.setItem(API_KEY_STORAGE_KEY,key); else window.localStorage.removeItem(API_KEY_STORAGE_KEY); }
+export function getApiKey():string { if(typeof window==="undefined")return ""; return inMemoryApiKey; }
+export function setApiKey(key:string){ if(typeof window==="undefined")return; inMemoryApiKey = key.trim(); }
 function authHeaders():HeadersInit{const key=getApiKey();return key?{Authorization:`Bearer ${key}`}:{};}
 export const fetcher=(path:string)=>fetch(`${API_BASE}${path}`,{headers:authHeaders()}).then(async res=>{if(!res.ok){const body=await res.json().catch(()=>({}));throw new Error(body.error||`API error ${res.status}`);}return res.json();});
 async function post(path:string,body?:unknown):Promise<{ok:boolean;data:any}>{const res=await fetch(`${API_BASE}${path}`,{method:"POST",headers:{...authHeaders(),"Content-Type":"application/json"},body:body===undefined?undefined:JSON.stringify(body)});const data=await res.json().catch(()=>({}));return{ok:res.ok,data};}

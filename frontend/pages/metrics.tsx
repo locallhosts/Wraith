@@ -7,7 +7,7 @@ function parseMetrics(raw:string):Sample[]{return raw.split("\n").filter(line=>l
 const groups=["wraith_pipeline_runs_total","wraith_pipeline_run_duration_seconds","wraith_rule_false_positive_rate","wraith_rule_robustness_score","wraith_approvals_total","wraith_deploys_total","wraith_webhook_rejections_total"];
 export default function MetricsPage(){
  const [raw,setRaw]=useState("");const [error,setError]=useState("");const [showRaw,setShowRaw]=useState(false);
- useEffect(()=>{const load=()=>fetchMetrics().then(setRaw).catch(e=>setError(e.message));load();const t=setInterval(load,5000);return()=>clearInterval(t)},[]);
+ useEffect(()=>{const load=()=>fetchMetrics().then(setRaw).catch((e: unknown)=>setError(e instanceof Error ? e.message : "Unable to load metrics"));load();const t=setInterval(load,5000);return()=>clearInterval(t)},[]);
  const samples=useMemo(()=>parseMetrics(raw),[raw]);
  const by=useMemo(()=>Object.fromEntries(groups.map(g=>[g,samples.filter(s=>s.name===g)])),[samples]);
  return <div className="min-h-screen bg-[#070707] text-zinc-200"><div className="mx-auto grid max-w-[1500px] grid-cols-[220px_1fr] gap-10 px-8 py-8"><PlatformNav/><main>

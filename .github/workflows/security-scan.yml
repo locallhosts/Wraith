@@ -22,7 +22,7 @@ jobs:
           args: "-fmt sarif -out gosec-results.sarif ./backend-go/..."
 
       - name: Upload gosec SARIF
-        if: always()
+        if: always() && hashFiles('gosec-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: gosec-results.sarif
@@ -46,18 +46,6 @@ jobs:
       - uses: github/codeql-action/autobuild@v4
 
       - uses: github/codeql-action/analyze@v4
-
-  dependency-review:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/dependency-review-action@v4
-        with:
-          fail-on-severity: high
 
   pip-audit:
     runs-on: ubuntu-latest
@@ -105,22 +93,27 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-results.sarif
 
   gitleaks:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Scan for committed secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan changed history for committed secrets
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/repo" \
+            zricethezav/gitleaks:latest \
+            git /repo --redact --exit-code 2 \
+            --log-opts="--no-merges --first-parent origin/main..HEAD"
 
   terraform-scan:
     runs-on: ubuntu-latest

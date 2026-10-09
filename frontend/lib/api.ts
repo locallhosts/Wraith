@@ -5,7 +5,7 @@ export interface RunStatus { run_id:string; rule_path:string; rule_id:string; ru
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown }
 export interface RuleRecord { name?:string; path?:string; rule_id?:string; title?:string; [key:string]:unknown }
 export interface RuleDetail { passed?:boolean; content?:string; rule?:{id?:string; level?:string; [key:string]:unknown}; issues?:Array<{severity?:string; field?:string; message?:string; [key:string]:unknown}>; [key:string]:unknown }
-export interface JobRecord { id?:string; run_id?:string; status?:string; stage?:string; [key:string]:unknown }
+export interface JobRecord { id?:number|string; run_id?:string; rule_path?:string; status?:string; stage?:string; attempts?:number; max_attempts?:number; available_at?:string; last_error?:string; created_at?:string; updated_at?:string; [key:string]:unknown }
 export interface SessionInfo { authenticated?:boolean; label?:string; role?:string; [key:string]:unknown }
 export interface AuditEvent { [key:string]:unknown }
 export function getApiKey():string { if(typeof window==="undefined")return ""; return window.localStorage.getItem(API_KEY_STORAGE_KEY)||""; }
@@ -24,6 +24,7 @@ export const fetchRules=():Promise<RuleRecord[]>=>fetcher("/rules");
 export const fetchRule=(name:string):Promise<RuleRecord>=>fetcher(`/rules/${encodeURIComponent(name)}`);
 export const fetchMetrics=():Promise<string>=>fetch(`${API_BASE}/metrics`,{headers:authHeaders()}).then(async res=>{if(!res.ok)throw new Error(`Metrics request failed (${res.status})`);return res.text();});
 export const fetchJobs=():Promise<JobRecord[]>=>fetcher("/jobs");
+export const retryPipelineJob=(id:string)=>post(`/jobs/${encodeURIComponent(id)}/retry`);
 export const fetchSession=():Promise<SessionInfo>=>fetcher("/session");
 export const fetchAudit=():Promise<AuditEvent[]>=>fetcher("/audit");
 export const fetchHealth=():Promise<HealthStatus>=>fetcher("/healthz");

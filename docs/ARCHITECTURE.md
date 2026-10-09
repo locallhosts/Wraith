@@ -1,63 +1,84 @@
-# Architecture
+# Wraith Architecture
 
-## Why two languages
+Wraith validates Sigma detection rules, records evidence, and gates rule promotion. Its primary security objective is to make validation traceable to the exact rule content tested while keeping untrusted rules and public submissions away from privileged control-plane resources.
 
-**Go** owns everything that needs to be fast, concurrent, and close to
-infrastructure: the webhook receiver, the Sigma linter (cheap fail-fast
-stage before any containers spin up), Docker orchestration of ephemeral
-test environments, and the Elasticsearch validation queries that gate the
-pipeline. Go's goroutines make "provision two containers, poll both until
-healthy, tear down on any failure" straightforward without callback soup.
+This describes logical responsibilities, not a claim that every deployment uses separate hosts or networks. See [Security Architecture](SECURITY_ARCHITECTURE.md), [Threat Model](THREAT_MODEL.md), and [Deployment](DEPLOYMENT.md).
 
-**Python** owns everything that's data/ML shaped: translating Sigma to an
-Elasticsearch query via the official `pySigma` library, generating
-statistically realistic synthetic telemetry with Faker, building the MITRE
-ATT&CK attack graph in Neo4j, and calling the Anthropic API to draft SOAR
-playbooks. This is the ecosystem where those libraries live; reimplementing
-pySigma's rule compiler in Go would be pure waste.
+## System context
 
-The two talk over a simple boundary: the Go API server shells out to
-`engine-python/run_pipeline.py` for a given rule + run ID, and reads back
-its exit code and JSON report. In a larger deployment this would become a
-gRPC or message-queue boundary instead of a subprocess call — the subprocess
-approach is intentionally the simplest thing that works for a single-node
-CI runner.
+Logical flow:
 
-## Two different "infrastructure as code" layers, on purpose
+- GitHub pull requests and webhook events → Go API and control plane.
+- Operator browser/API client → API-key authentication → server-side role authorization.
+- API → configured store, pipeline queue/worker, and audit path.
+- Pipeline → lint/translation → restricted per-run validation environment → test SIEM/graph services.
+- Validation report → evidence store → provenance verification and approval gate → deployment adapter.
+- Anonymous Playground → isolated limited validation path only; it must not connect to control-plane capabilities.
 
-- **Ephemeral per-PR test range** (`backend-go/orchestrator/docker.go`):
-  created and destroyed via the Docker Engine API directly, because CI runs
-  need sub-minute lifecycle and per-run isolation (labeled by `run_id` so a
-  crashed job can still be swept up later). Terraform's plan/apply/destroy
-  cycle is the wrong tool for "spin up, use for 90 seconds, tear down."
-- **Persistent staging/prod stack** (`infra/terraform/`): the long-lived
-  Elasticsearch + Neo4j + backend that the dashboard and rule-fire history
-  actually run against. This is exactly what Terraform is for.
+## Components and responsibilities
 
-## The validation contract
+| Component | Responsibility | Security-sensitive inputs |
+|---|---|---|
+| Go API (backend-go/api) | HTTP routing, auth integration, webhooks, pipeline control, operator endpoints | API keys, webhook bodies, rule content, IDs, deploy requests |
+| Authentication (backend-go/auth) | Resolve API-key identity and role | Authorization header, key verifier, identity metadata |
+| Store (backend-go/store) | Persist runs, evidence, approvals, jobs, keys, and audit records | All records and database credentials |
+| Pipeline worker | Coordinate queued validation | Rule bytes, run IDs, subprocess configuration |
+| Linter/translation (backend-go/linter, engine-python) | Validate and translate Sigma rules | Untrusted YAML and query semantics |
+| Orchestrator | Create and remove per-run test services | Docker API access, run identifiers, image settings |
+| Validation services | Exercise rules against attack and benign scenarios | Generated telemetry and translated queries |
+| Provenance | Sign and verify evidence bound to rule content | Reports, private signing key, trusted public key |
+| Deployment gate | Verify approval and evidence before promotion | Approval state, attestation, current rule bytes |
+| Frontend | Present runs, evidence, audit events, and controls | API responses and operator-entered API key |
+| Public Playground | Limited anonymous validation | Anonymous request body and client IP |
 
-A rule only passes if, against the *same* Elasticsearch Query DSL translated
-from its Sigma source:
+## Authenticated validation flow
 
-1. `count(attack_index) > 0` — it actually detects the technique it claims to.
-2. `count(baseline_index) == 0` — it produces zero false positives against
-   24h of synthetic benign traffic across ~40 users / 60 hosts.
+1. A client submits a request with an API key.
+2. Authentication resolves identity; server-side route authorization decides whether the role may act. UI visibility is not a security boundary.
+3. The API validates request shape and invokes or enqueues pipeline work.
+4. The pipeline lints and translates the rule before behavioral validation.
+5. Validation runs against configured test infrastructure and produces a report.
+6. The configured store persists run state and evidence; state-changing actions should produce audit events.
+7. Where configured, provenance binds evidence to a digest of the tested rule bytes. Passing validation alone is not production authorization.
 
-Both checks run against the real ephemeral Elasticsearch instance, not a
-stub. See `backend-go/validator/elastic.go` and `engine-python/validate.py`
-(the Python copy exists so a local `run_pipeline.py` invocation can gate on
-exit code without a round trip through the Go API — see README "Design
-notes" for the planned consolidation).
+## Promotion flow
 
-## Attack graph construction
+1. An authorized operator requests promotion.
+2. The server verifies required approval, signature against a separately trusted public key, and equality between the current rule digest and the attested digest.
+3. Only after those checks does the deployment adapter write to its configured target.
+4. The decision and result should be auditable. High-assurance deployments should export audit events to an independently controlled destination.
 
-`engine-python/attack_simulator.py` reads the `attack.tXXXX` MITRE tags off
-the Sigma rule under test, looks them up in `mitre_mappings.json`, and
-builds a full kill-chain (`initial-access` → ... → `impact`) in Neo4j,
-preferring the rule's own tagged technique for whichever tactic it belongs
-to and filling in a plausible surrounding chain for the rest. Each stage
-becomes a `(:Stage)-[:NEXT]->(:Stage)` node, linked to synthetic `(:User)`
-and `(:Host)` nodes, and is also converted into an Elasticsearch document
-timestamped a few minutes apart from its neighbors — so a rule gets
-exercised inside a believable incident timeline, not a single isolated
-log line.
+## Public Playground boundary
+
+The Playground is an intentionally separate anonymous entry point. It must not inherit control-plane credentials or access to production Elasticsearch, Neo4j, deployment, key-management, or administrative operations. Enforce request-size and time limits, anonymous rate limits, exact allowed CORS origins, and a minimal subprocess environment. Keep it disabled unless exposure and controls have been reviewed.
+
+## Language and process boundary
+
+- Go owns the API/control plane, authentication integration, orchestration, validation coordination, and provenance/deployment gates.
+- Python owns data-oriented pipeline tasks and libraries used for Sigma translation and synthetic telemetry/attack simulation.
+- Treat all data crossing the Go-to-Python boundary as untrusted. Use discrete process arguments rather than shell interpolation, a minimal environment, bounded execution time, restricted filesystem permissions, and resource/network limits.
+- Do not pass API credentials, database DSNs, signing keys, or cloud credentials to rule-processing subprocesses.
+- If subprocess execution is replaced with RPC or a queue, preserve these controls at the new boundary.
+
+## Infrastructure lifecycle
+
+- Ephemeral validation resources must be run-scoped, labelled with an opaque run identifier, constrained, and removed on success, failure, cancellation, and timeout. Reconcile abandoned resources after worker crashes.
+- Persistent services require separate network, access, patching, backup, recovery, and monitoring policies.
+- Containerization alone is not a security sandbox. Production validation should run on a hardened, least-privileged worker with no production secrets and outbound network access denied by default.
+
+## Validation contract and limits
+
+The pipeline combines static checks, query translation, attack-scenario execution, benign-baseline evaluation, and robustness/mutation checks where configured. A pass means the rule behaved as expected against the tested corpus and backend; it does not establish universal detection coverage or equivalent behavior across SIEM products. See [Validation](VALIDATION.md) for backend-specific evidence scope.
+
+## Operational invariants
+
+1. Untrusted rule content never becomes a shell command or privileged configuration.
+2. Anonymous Playground requests cannot reach authenticated control-plane capabilities.
+3. Every privileged operation is authorized server-side.
+4. A passing run is not deployment authorization.
+5. Promotion requires approval and evidence bound to current rule bytes.
+6. Trust comes from operator-configured key material, not a key supplied by an untrusted attestation.
+7. Validation workers do not receive production credentials or signing private keys.
+8. Audit evidence is exported off-host for high-assurance deployments.
+9. Ephemeral resources have quotas, timeouts, cleanup, and reconciliation.
+10. Security claims must be scoped to controls actually configured and tested.

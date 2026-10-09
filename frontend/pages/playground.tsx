@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useMemo, useState } from "react";
 import WraithShell from "../components/WraithShell";
 import Pipeline from "../components/security/Pipeline";
 import { validatePlayground } from "../lib/api";
@@ -29,7 +29,7 @@ function pretty(value: unknown) {
 }
 
 function ResultTabButton({ tab, active, onClick, children }: {
-  tab: ResultTab; active: ResultTab; onClick: (tab: ResultTab) => void; children: string;
+  tab: ResultTab; active: ResultTab; onClick: (tab: ResultTab) => void; children: ReactNode;
 }) {
   return <button type="button" onClick={() => onClick(tab)} className={`rounded-md px-3 py-2 text-[10px] transition ${active === tab ? "border border-cyan-800 bg-cyan-950/40 text-cyan-200" : "border border-transparent text-zinc-500 hover:text-zinc-200"}`}>{children}</button>;
 }

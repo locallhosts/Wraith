@@ -49,9 +49,22 @@ export default function RunDetail() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dryRun, setDryRun] = useState<unknown>(null);
+  const [eventQuery, setEventQuery] = useState("");
+  const [eventLevel, setEventLevel] = useState("all");
+  const [eventStage, setEventStage] = useState("all");
 
   const orderedEvents = useMemo(() => [...(events ?? [])].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [events]);
+  const eventStages = useMemo(() => Array.from(new Set((events ?? []).map(event => event.stage).filter(Boolean))).sort(), [events]);
+  const filteredEvents = useMemo(() => {
+    const query = eventQuery.trim().toLowerCase();
+    return orderedEvents.filter(event => {
+      const matchesQuery = !query || [event.stage, event.level, event.message, event.created_at].some(value => String(value ?? "").toLowerCase().includes(query));
+      const matchesLevel = eventLevel === "all" || String(event.level || "info").toLowerCase() === eventLevel;
+      const matchesStage = eventStage === "all" || event.stage === eventStage;
+      return matchesQuery && matchesLevel && matchesStage;
+    });
+  }, [orderedEvents, eventQuery, eventLevel, eventStage]);
   const stageSummary = useMemo(() => ({
     passed: (stages ?? []).filter(stage => stage.status === "passed").length,
     failed: (stages ?? []).filter(stage => stage.status === "failed").length,
@@ -90,7 +103,8 @@ export default function RunDetail() {
   function exportEvidence() {
     if (!run) return;
     const bundle = {
-      schema_version: "wraith.run-evidence.v1",
+      schema_version: "wraith.run-evidence.v2",
+      provenance: { source: "Wraith authenticated API", run_endpoint: `/runs/${run.run_id}`, stages_endpoint: `/runs/${run.run_id}/stages`, events_endpoint: `/runs/${run.run_id}/events?limit=500`, report_endpoint: `/runs/${run.run_id}/report`, report_status: report ? "available" : "not_available_in_export" },
       exported_at: new Date().toISOString(),
       run,
       stages: stages ?? [],
@@ -165,10 +179,12 @@ export default function RunDetail() {
           </section>
 
           <section className="rounded border border-zinc-800 p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Execution event timeline</h2><p className="mt-1 text-xs text-zinc-500">Chronological events recorded by the pipeline and operator actions.</p></div><span className="text-xs text-zinc-600">{orderedEvents.length} events · newest first</span></div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Execution event timeline</h2><p className="mt-1 text-xs text-zinc-500">Chronological events recorded by the pipeline and operator actions.</p></div><span className="text-xs text-zinc-600">{filteredEvents.length} of {orderedEvents.length} events · newest first</span></div>
             {eventsError && <p className="text-xs text-amber-300">Event history is unavailable. Verify API access and retry.</p>}
             {!eventsError && orderedEvents.length === 0 && <p className="text-sm text-zinc-500">No run events have been recorded yet.</p>}
-            <ol className="space-y-0">{orderedEvents.map((event, index) => <li key={event.id || `${event.created_at}-${index}`} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-3 pb-5 last:pb-0"><div className="flex h-full flex-col items-center"><span className={`mt-1.5 h-2 w-2 rounded-full ${event.level === "error" || event.level === "critical" ? "bg-rose-400" : event.level === "warning" ? "bg-amber-300" : "bg-cyan-400"}`} />{index < orderedEvents.length - 1 && <span className="mt-1 w-px flex-1 bg-zinc-800" />}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-xs text-zinc-300">{event.stage || "pipeline"}</span><span className={`text-[9px] uppercase ${tone(event.level)}`}>{event.level || "info"}</span><time className="text-[10px] text-zinc-600">{formatTime(event.created_at)}</time></div><p className="mt-1 break-words text-sm leading-6 text-zinc-400">{event.message}</p></div></li>)}</ol>
+            {orderedEvents.length > 0 && <div className="run-event-filters"><label>Search events<input aria-label="Search run events" value={eventQuery} onChange={e => setEventQuery(e.target.value)} placeholder="Search message, stage, timestamp…" /></label><label>Severity<select aria-label="Filter events by severity" value={eventLevel} onChange={e => setEventLevel(e.target.value)}><option value="all">All severities</option><option value="error">Error</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="info">Info</option><option value="success">Success</option></select></label><label>Stage<select aria-label="Filter events by stage" value={eventStage} onChange={e => setEventStage(e.target.value)}><option value="all">All stages</option>{eventStages.map(stage => <option key={stage} value={stage}>{stage}</option>)}</select></label><button type="button" onClick={() => { setEventQuery(""); setEventLevel("all"); setEventStage("all"); }}>Reset filters</button></div>}
+            {!eventsError && orderedEvents.length > 0 && filteredEvents.length === 0 && <p className="text-sm text-zinc-500">No events match the selected filters.</p>}
+            <ol className="space-y-0">{filteredEvents.map((event, index) => <li key={event.id || `${event.created_at}-${index}`} className="relative grid grid-cols-[14px_minmax(0,1fr)] gap-3 pb-5 last:pb-0"><div className="flex h-full flex-col items-center"><span className={`mt-1.5 h-2 w-2 rounded-full ${event.level === "error" || event.level === "critical" ? "bg-rose-400" : event.level === "warning" ? "bg-amber-300" : "bg-cyan-400"}`} />{index < orderedEvents.length - 1 && <span className="mt-1 w-px flex-1 bg-zinc-800" />}</div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-xs text-zinc-300">{event.stage || "pipeline"}</span><span className={`text-[9px] uppercase ${tone(event.level)}`}>{event.level || "info"}</span><time className="text-[10px] text-zinc-600">{formatTime(event.created_at)}</time></div><p className="mt-1 break-words text-sm leading-6 text-zinc-400">{event.message}</p></div></li>)}</ol>
           </section>
 
           <ReportViewer runId={runId} />

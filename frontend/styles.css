@@ -129,3 +129,23 @@
 .run-event-filters button:hover{border-color:#43586b;color:#d1dce6}
 @media(max-width:700px){.run-event-filters{grid-template-columns:1fr 1fr}.run-event-filters label:first-child{grid-column:1/-1}.run-event-filters button{align-self:stretch}}
 @media(max-width:420px){.run-event-filters{grid-template-columns:1fr}.run-event-filters label:first-child{grid-column:auto}}
+
+
+/* Governance audit console */
+.audit-access-error{margin-bottom:16px;border:1px solid rgba(245,189,79,.24);border-radius:6px;background:rgba(245,189,79,.035);padding:14px 16px;color:#e6c477}
+.audit-access-error strong{font-size:11px}.audit-access-error p{margin:6px 0;color:#a99b79;font-size:10px;line-height:1.6}.audit-access-error code{display:block;margin-top:8px;color:#7f8a98;font-size:9px;overflow-wrap:anywhere}
+.audit-reset{border:1px solid #253241;border-radius:5px;background:#101720;padding:8px 10px;color:#8998a9;font-size:10px}.audit-reset:hover{border-color:#43586b;color:#d1dce6}
+.audit-table-wrap{width:100%;overflow:auto}
+.audit-table{width:100%;border-collapse:collapse;text-align:left;font-size:10px}
+.audit-table th{padding:12px 14px;border-bottom:1px solid #222d39;background:#0b1016;color:#58687b;font-size:8px;font-weight:500;text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+.audit-table td{padding:13px 14px;border-bottom:1px solid rgba(29,39,51,.6);vertical-align:top;color:#a1afbf}
+.audit-table tbody tr:hover{background:rgba(20,31,43,.35)}
+.audit-table tbody tr:last-child td{border-bottom:0}
+.audit-table td strong{display:block;color:#cbd5df;font-size:10px;font-weight:500}
+.audit-table td small{display:block;margin-top:5px;color:#627286;font-size:9px;overflow-wrap:anywhere}
+.audit-table .audit-time{min-width:165px;color:#7b8a9b;font-size:9px;white-space:nowrap}
+.audit-table .audit-action{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#80d9ed}
+.audit-table .audit-resource,.audit-table .audit-ip{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#77889a;font-size:9px;overflow-wrap:anywhere}
+.audit-table .audit-detail{min-width:200px;max-width:440px;line-height:1.6;overflow-wrap:anywhere}
+.audit-table .audit-ip{min-width:110px}
+@media(max-width:700px){.audit-table{min-width:760px}.audit-access-error{padding:12px}}

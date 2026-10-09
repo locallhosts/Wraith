@@ -3,7 +3,7 @@ import { ReactNode } from "react";
 import ThemeToggle from "./ThemeToggle";
 
 const groups = [
-  { label: "Operations", items: [["Command Center", "/"], ["Validation Runs", "/runs/active"]] },
+  { label: "Operations", items: [["Command Center", "/"], ["Validation Runs", "/runs/active"], ["Security Analytics", "/analytics"]] },
   { label: "Detection", items: [["Rules", "/rules"], ["Evidence", "/evidence"], ["Playground", "/playground"]] },
   { label: "Governance", items: [["Audit", "/audit"], ["Provenance", "/governance"], ["Deployments", "/deployments"]] },
   { label: "Platform", items: [["Architecture", "/architecture"], ["Capabilities", "/capabilities"], ["Integrations", "/integrations"]] },

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { filterAuditRecords, filterJobs } from "./filters";
 
 describe("filterAuditRecords", () => {
-  const records = [
+  const records: Array<{ id: number; actor?: string; actor_role?: string; action?: string; detail?: string; ip_address?: string; timestamp?: string }> = [
     { id: 1, actor: "alice", actor_role: "admin", action: "key.create", timestamp: "2026-01-01T10:00:00Z" },
     { id: 2, actor: "bob", actor_role: "analyst", action: "run.retry", detail: "retry failed job", timestamp: "2026-01-02T10:00:00Z" },
     { id: 3, actor: "carol", actor_role: "admin", action: "key.revoke", ip_address: "192.0.2.10", timestamp: "invalid-date" },
@@ -25,7 +25,7 @@ describe("filterAuditRecords", () => {
 });
 
 describe("filterJobs", () => {
-  const jobs = [
+  const jobs: Array<{ id: number; status: string; last_error?: string; run_id?: string; rule_path?: string; updated_at?: string; created_at?: string }> = [
     { id: 1, status: "failed", last_error: "timeout", updated_at: "2026-02-01T00:00:00Z" },
     { id: 2, status: "cancelled", run_id: "run-abc", updated_at: "2026-02-02T00:00:00Z" },
     { id: 3, status: "completed", rule_path: "rules/example.yml", created_at: "2026-01-01T00:00:00Z" },

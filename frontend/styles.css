@@ -149,3 +149,15 @@
 .audit-table .audit-detail{min-width:200px;max-width:440px;line-height:1.6;overflow-wrap:anywhere}
 .audit-table .audit-ip{min-width:110px}
 @media(max-width:700px){.audit-table{min-width:760px}.audit-access-error{padding:12px}}
+
+
+/* API credential UX: masked input, explicit memory-only lifecycle, accessible status. */
+.api-key-control{display:grid;grid-template-columns:auto minmax(140px,220px) auto;align-items:center;gap:8px 10px;font-size:10px}
+.api-key-control>label{color:#718096}
+.api-key-control>input{width:100%;min-width:0;border:1px solid #253241;border-radius:5px;background:#080c12;padding:8px 10px;color:#c7d3df;font:10px ui-monospace,SFMono-Regular,Menlo,monospace;outline:none}
+.api-key-control>input:focus{border-color:rgba(56,217,255,.5);box-shadow:0 0 0 3px rgba(56,217,255,.05)}
+.api-key-control>button{border:1px solid #2c4656;border-radius:5px;background:rgba(56,217,255,.05);padding:8px 10px;color:#9beafa;font-size:10px;white-space:nowrap}
+.api-key-control>button:disabled{opacity:.55;cursor:wait}
+.api-key-status{grid-column:1/-1;margin:0;color:#657588;font-size:9px;line-height:1.5}
+.api-key-status.valid{color:#70d9a7}.api-key-status.error{color:#ff91a0}.api-key-status.checking{color:#f0ca75}
+@media(max-width:560px){.api-key-control{grid-template-columns:minmax(0,1fr) auto}.api-key-control>label{grid-column:1/-1}.api-key-control>input{grid-column:1}.api-key-control>button{grid-column:2}.api-key-status{grid-column:1/-1}}

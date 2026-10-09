@@ -9,8 +9,11 @@ export default function ApiKeyBar() {
 
   async function saveKey() {
     setApiKey(key);
-    setSession({ kind: "checking", message: key.trim() ? "Checking API key…" : "API key cleared from this page session." });
-    if (!key.trim()) return;
+    if (!key.trim()) {
+      setSession({ kind: "idle", message: "API key cleared from this page session." });
+      return;
+    }
+    setSession({ kind: "checking", message: "Checking API key…" });
     try {
       const result = await fetchSession();
       if (result.authenticated !== true) {

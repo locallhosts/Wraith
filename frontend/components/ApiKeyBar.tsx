@@ -1,36 +1,38 @@
-import { useEffect, useState } from "react";
-import { getApiKey, setApiKey } from "../lib/api";
+import { useState } from "react";
+import { fetchSession, getApiKey, setApiKey } from "../lib/api";
+
+type SessionState = { kind: "idle" | "checking" | "valid" | "error"; message: string };
 
 export default function ApiKeyBar() {
-  const [key, setKey] = useState("");
-  const [saved, setSaved] = useState(false);
+  const [key, setKey] = useState(() => getApiKey());
+  const [session, setSession] = useState<SessionState>({ kind: "idle", message: "Key stays in memory and is cleared on page reload." });
 
-  useEffect(() => {
-    setKey(getApiKey());
-  }, []);
+  async function saveKey() {
+    setApiKey(key);
+    setSession({ kind: "checking", message: key.trim() ? "Checking API key…" : "API key cleared from this page session." });
+    if (!key.trim()) return;
+    try {
+      const result = await fetchSession();
+      if (result.authenticated === false) {
+        setSession({ kind: "error", message: "The API did not authenticate this key. Check the key and try again." });
+        return;
+      }
+      const role = result.role ? ` · role: ${result.role}` : "";
+      const label = result.label ? ` · ${result.label}` : "";
+      setSession({ kind: "valid", message: `API responded to the session check${role}${label}.` });
+    } catch (error) {
+      setSession({ kind: "error", message: error instanceof Error ? error.message : "Session check failed. Verify API connectivity and key permissions." });
+    }
+  }
 
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <label className="text-zinc-600">API key</label>
-      <input
-        type="password"
-        value={key}
-        onChange={(e) => {
-          setKey(e.target.value);
-          setSaved(false);
-        }}
-        placeholder="wraith_..."
-        className="w-40 rounded border border-zinc-800 bg-zinc-900 px-2 py-1 font-mono text-zinc-300 focus:border-zinc-600 focus:outline-none"
-      />
-      <button
-        onClick={() => {
-          setApiKey(key);
-          setSaved(true);
-        }}
-        className="rounded border border-zinc-700 px-2 py-1 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-      >
-        {saved ? "Saved" : "Save"}
-      </button>
+    <div className="api-key-control" aria-label="API authentication">
+      <label htmlFor="wraith-api-key">API key</label>
+      <input id="wraith-api-key" type="password" autoComplete="off" value={key}
+        onChange={(event) => { setKey(event.target.value); setSession({ kind: "idle", message: "Unsaved key changes." }); }}
+        placeholder="Paste API key" />
+      <button type="button" onClick={saveKey} disabled={session.kind === "checking"}>{session.kind === "checking" ? "Checking…" : "Apply key"}</button>
+      <p role={session.kind === "error" ? "alert" : "status"} className={`api-key-status ${session.kind}`}>{session.message}</p>
     </div>
   );
 }

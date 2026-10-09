@@ -1,5 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-// Keep credentials in memory only: browser storage is readable by injected JavaScript.\nlet inMemoryApiKey = "";
+// Keep credentials in memory only: browser storage is readable by injected JavaScript.
+let inMemoryApiKey = "";
 
 export interface RunStatus { run_id:string; rule_path:string; rule_id:string; rule_title:string; repo:string; pr_number:number; stage:"lint"|"provision"|"simulate"|"validate"|"soar"|"done"|"failed"; passed?:boolean; reason?:string; approved_by?:string; approved_at?:string; deployed_at?:string; started_at:string; updated_at:string; }
 export interface HealthStatus { status?:string; ready?:boolean; error?:string; [key:string]:unknown }

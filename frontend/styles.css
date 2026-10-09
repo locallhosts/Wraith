@@ -117,3 +117,15 @@
 .jobs-notice.error{border-color:rgba(255,102,125,.25);color:#ff91a0;background:rgba(255,102,125,.035)}
 .jobs-notice button{color:inherit;font-size:16px;line-height:1}
 @media(max-width:650px){.job-card{display:block;padding:15px}.job-card-actions{margin-top:14px}.job-retry-button{width:100%}.job-meta{display:grid;gap:7px}}
+
+
+/* Evidence timeline filtering */
+.run-event-filters{display:grid;grid-template-columns:minmax(180px,1fr) minmax(130px,.35fr) minmax(130px,.35fr) auto;align-items:end;gap:10px;margin:14px 0 18px;padding:12px;border:1px solid rgba(39,52,66,.8);border-radius:6px;background:rgba(8,12,18,.65)}
+.run-event-filters label{display:grid;gap:6px;color:#69788b;font-size:9px}
+.run-event-filters input,.run-event-filters select{width:100%;min-width:0;border:1px solid #253241;border-radius:5px;background:#080c12;padding:8px 9px;color:#b6c3d1;font-size:10px;outline:none}
+.run-event-filters input:focus,.run-event-filters select:focus{border-color:#236176}
+.run-event-filters input::placeholder{color:#4f5d6d}
+.run-event-filters button{border:1px solid #253241;border-radius:5px;background:#101720;padding:8px 10px;color:#8998a9;font-size:9px;white-space:nowrap}
+.run-event-filters button:hover{border-color:#43586b;color:#d1dce6}
+@media(max-width:700px){.run-event-filters{grid-template-columns:1fr 1fr}.run-event-filters label:first-child{grid-column:1/-1}.run-event-filters button{align-self:stretch}}
+@media(max-width:420px){.run-event-filters{grid-template-columns:1fr}.run-event-filters label:first-child{grid-column:auto}}

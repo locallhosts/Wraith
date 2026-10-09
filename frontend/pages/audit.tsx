@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import useSWR from "swr";
 import WraithShell from "../components/WraithShell";
 import { fetcher } from "../lib/api";
+import { filterAuditRecords } from "../lib/filters";
 
 interface AuditRecord {
   id: number | string;
@@ -28,15 +29,7 @@ export default function AuditPage() {
 
   const actions = useMemo(() => Array.from(new Set((data ?? []).map(item => item.action).filter((value): value is string => Boolean(value)))).sort(), [data]);
   const roles = useMemo(() => Array.from(new Set((data ?? []).map(item => item.actor_role).filter((value): value is string => Boolean(value)))).sort(), [data]);
-  const entries = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return [...(data ?? [])].filter(item => {
-      const searchable = [item.id, item.actor, item.actor_role, item.action, item.resource, item.detail, item.ip_address, item.timestamp];
-      return (!q || searchable.some(value => String(value ?? "").toLowerCase().includes(q)))
-        && (action === "all" || item.action === action)
-        && (role === "all" || item.actor_role === role);
-    }).sort((a, b) => new Date(b.timestamp ?? 0).getTime() - new Date(a.timestamp ?? 0).getTime());
-  }, [data, query, action, role]);
+  const entries = useMemo(() => filterAuditRecords(data ?? [], { query, action, role }), [data, query, action, role]);
 
   const actors = new Set((data ?? []).map(item => item.actor).filter(Boolean)).size;
   const actionCount = new Set((data ?? []).map(item => item.action).filter(Boolean)).size;

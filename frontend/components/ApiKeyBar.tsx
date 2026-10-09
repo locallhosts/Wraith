@@ -13,7 +13,7 @@ export default function ApiKeyBar() {
     if (!key.trim()) return;
     try {
       const result = await fetchSession();
-      if (result.authenticated === false) {
+      if (result.authenticated !== true) {
         setSession({ kind: "error", message: "The API did not authenticate this key. Check the key and try again." });
         return;
       }

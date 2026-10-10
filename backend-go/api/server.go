@@ -573,12 +573,12 @@ func prepareDeployment(s *Server, c *gin.Context) (*store.RunStatus, *provenance
 	if run.ApprovedBy == "" { return nil,nil,nil,nil,nil,deploy.Gate{},deploy.ErrNotApproved }
 	if s.TrustedSigningKey == nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("production signing key is not configured") }
 	if s.ESAddr == "" { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("production deployment target is not configured") }
-	attBytes, err := os.ReadFile(fmt.Sprintf("%s/%s/attestation.json", s.outputDir(), run.RunID)); if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("no attestation found for this run: %w",err) }
+	attestationPath, pathErr := runArtifactPath(s.outputDir(), run.RunID, "attestation.json"); if pathErr != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("invalid run artifact identifier") }; attBytes, err := os.ReadFile(attestationPath); if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("no attestation found for this run: %w",err) }
 	var signed provenance.SignedAttestation; if err=json.Unmarshal(attBytes,&signed); err!=nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("malformed attestation: %w",err) }
 	if signed.Attestation.RunID != run.RunID || signed.Attestation.RuleID != run.RuleID { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("attestation does not belong to this run/rule") }
 	rule, err := os.ReadFile(run.RulePath); if err != nil { return nil,nil,nil,nil,nil,deploy.Gate{},fmt.Errorf("could not read rule: %w",err) }
 	gate:=deploy.Gate{TrustedPublicKey:s.TrustedSigningKey}; if err=gate.Check(run.ApprovedBy,&signed,rule); err!=nil{return nil,nil,nil,nil,nil,gate,err}
-	qb,err:=os.ReadFile(fmt.Sprintf("%s/%s/query_dsl.json",s.outputDir(),run.RunID)); if err!=nil{return nil,nil,nil,nil,nil,gate,fmt.Errorf("no translated query found: %w",err)}
+	queryPath, pathErr := runArtifactPath(s.outputDir(), run.RunID, "query_dsl.json"); if pathErr != nil { return nil,nil,nil,nil,nil,gate,fmt.Errorf("invalid run artifact identifier") }; qb,err:=os.ReadFile(queryPath); if err!=nil{return nil,nil,nil,nil,nil,gate,fmt.Errorf("no translated query found: %w",err)}
 	var q any; if err=json.Unmarshal(qb,&q);err!=nil{return nil,nil,nil,nil,nil,gate,fmt.Errorf("translated query is malformed: %w",err)}
 	es,err:=elasticsearch.NewClient(elasticsearch.Config{Addresses:[]string{s.ESAddr}});if err!=nil{return nil,nil,nil,nil,nil,gate,err}
 	return run,&signed,rule,q,es,gate,nil
@@ -659,7 +659,11 @@ func DefaultPythonPipelineTrigger(
 
 		update("simulate", nil, "")
 
-		reportPath := fmt.Sprintf("%s/%s/report.json", s.outputDir(), runID)
+		reportPath, pathErr := runArtifactPath(s.outputDir(), runID, "report.json")
+		if pathErr != nil {
+			failRun(s, ctx, runID, "invalid run artifact identifier", start)
+			return
+		}
 		stageIDs := map[string]int64{}
 		syncStages := func() {
 			reportBytes, readErr := os.ReadFile(reportPath)

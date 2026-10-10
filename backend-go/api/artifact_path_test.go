@@ -15,6 +15,7 @@ func TestRunArtifactPathConstrainsRunID(t *testing.T) {
 	}{
 		{name: "normal run id", runID: "a1b2c3d4-rule_123", artifact: "report.json"},
 		{name: "hyphenated run id", runID: "run-123", artifact: "attestation.json"},
+		{name: "translated query artifact", runID: "run-123", artifact: "query_dsl.json"},
 		{name: "parent traversal", runID: "../secret", artifact: "report.json", wantErr: true},
 		{name: "absolute path", runID: "/tmp/secret", artifact: "report.json", wantErr: true},
 		{name: "path separator", runID: "run/../../secret", artifact: "attestation.json", wantErr: true},

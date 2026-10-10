@@ -62,7 +62,9 @@ func updateStageFromLine(update func(string,*bool,string),line string){
 func streamPipelineOutput(r io.Reader,consume func(string)){scanner:=bufio.NewScanner(r);scanner.Buffer(make([]byte,64*1024),1024*1024);for scanner.Scan(){consume(scanner.Text())}}
 
 func readPipelineVerdict(outputDir,runID string)(*bool,string){
-	data,err:=os.ReadFile(fmt.Sprintf("%s/%s/report.json",outputDir,runID));if err!=nil{return nil,""}
+	path, pathErr := runArtifactPath(outputDir, runID, "report.json")
+	if pathErr != nil { return nil, "invalid run artifact identifier" }
+	data,err:=os.ReadFile(path);if err!=nil{return nil,""}
 	var report struct{Passed bool `json:"passed"`;Reason string `json:"reason"`;Error string `json:"error"`}
 	if err:=json.Unmarshal(data,&report);err!=nil{return nil,"malformed report.json: "+err.Error()}
 	reason:=report.Reason;if reason==""{reason=report.Error};return &report.Passed,reason

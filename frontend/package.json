@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -25,5 +25,8 @@
   },
   "overrides": {
     "postcss-selector-parser": "7.1.6"
+  },
+  "engines": {
+    "node": ">=20.9.0"
   }
 }

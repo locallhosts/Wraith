@@ -31,7 +31,7 @@ func NewMemoryStore() *MemoryStore {
 	// out of the box. Rotate/remove this before any real deployment —
 	// see docs/ENTERPRISE.md "Secrets & key management".
 	devKeyHash := sha256Hex("wraith-dev-admin-key")
-	m.keys[devKeyHash] = &APIKey{KeyHash: devKeyHash, Label: "dev-admin", Role: "admin", CreatedAt: time.Now()}
+	m.keys[devKeyHash] = &APIKey{ID: "dev-admin", KeyHash: devKeyHash, Label: "dev-admin", Role: "admin", CreatedAt: time.Now()}
 	return m
 }
 

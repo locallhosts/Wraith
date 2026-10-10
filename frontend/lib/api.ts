@@ -18,6 +18,8 @@ async function post(path:string,body?:unknown):Promise<{ok:boolean;data:any}>{co
 export const fetchRuns=():Promise<RunStatus[]>=>fetcher("/runs");
 export const fetchRun=(id:string):Promise<RunStatus>=>fetcher(`/runs/${encodeURIComponent(id)}`);
 export const fetchReport=(id:string):Promise<RunReport>=>fetcher(`/runs/${encodeURIComponent(id)}/report`);
+export interface RunTranslation { run_id:string; query_dsl:unknown; path:string }
+export const fetchRunTranslation=(id:string):Promise<RunTranslation>=>fetcher(`/runs/${encodeURIComponent(id)}/translation`);
 export const fetchAttestation=(id:string):Promise<Attestation>=>fetcher(`/runs/${encodeURIComponent(id)}/attestation`);
 export const fetchStages=(id:string):Promise<PipelineStage[]>=>fetcher(`/runs/${encodeURIComponent(id)}/stages`);
 export const fetchEvents=(id:string):Promise<any[]>=>fetcher(`/runs/${encodeURIComponent(id)}/events`);

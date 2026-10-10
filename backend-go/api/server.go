@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -263,11 +264,12 @@ func slogMiddleware(log *slog.Logger) gin.HandlerFunc {
 func handleWebhook(s *Server, c *gin.Context) {
 	evt, err := webhook.ParsePullRequestEvent(c.Request, s.WebhookSecret)
 	if err != nil {
+		if errors.Is(err, webhook.ErrPayloadTooLarge) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "webhook payload exceeds size limit"})
+			return
+		}
 		metrics.WebhookRejectionsTotal.WithLabelValues("bad_signature").Inc()
-
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "webhook signature verification failed"})
 		return
 	}
 

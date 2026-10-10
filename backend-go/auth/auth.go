@@ -35,6 +35,7 @@ const ctxKeyIdentity = "wraith_identity"
 // Identity is attached to the gin.Context for downstream handlers and the
 // audit logger to read.
 type Identity struct {
+	KeyID string
 	Label string
 	Role  string
 }
@@ -67,7 +68,7 @@ func Middleware(s store.Store) gin.HandlerFunc {
 			return
 		}
 
-		c.Set(ctxKeyIdentity, Identity{Label: key.Label, Role: key.Role})
+		c.Set(ctxKeyIdentity, Identity{KeyID: key.ID, Label: key.Label, Role: key.Role})
 		c.Next()
 	}
 }

@@ -113,6 +113,10 @@ func NewRouter(s *Server) *gin.Engine {
 	}
 
 	r := gin.New()
+	if err := r.SetTrustedProxies(s.TrustedProxies); err != nil {
+		s.Log.Error("invalid trusted proxy configuration; forwarded IP headers will be ignored", "error", err)
+		_ = r.SetTrustedProxies(nil)
+	}
 
 	r.Use(gin.Recovery(), slogMiddleware(s.Log), securityHeadersMiddleware(), requestTimeoutMiddleware(30*time.Second))
 	r.Use(corsMiddleware(s.PublicOrigins))

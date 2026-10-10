@@ -85,6 +85,9 @@ func HashRuleContent(ruleYAML []byte) string {
 // Sign produces a SignedAttestation for the given Attestation using the
 // pipeline's private key.
 func Sign(a Attestation, priv ed25519.PrivateKey) (*SignedAttestation, error) {
+	if len(priv) != ed25519.PrivateKeySize {
+		return nil, fmt.Errorf("invalid Ed25519 private key length: got %d, want %d", len(priv), ed25519.PrivateKeySize)
+	}
 	a.SchemaVersion = SchemaVersion
 	if a.IssuedAt.IsZero() {
 		a.IssuedAt = time.Now().UTC()
@@ -110,9 +113,21 @@ func Sign(a Attestation, priv ed25519.PrivateKey) (*SignedAttestation, error) {
 //     in the attestation alone — that would let anyone self-sign — it
 //     must compare against a pinned, out-of-band-distributed key).
 func Verify(sa *SignedAttestation, trustedPub ed25519.PublicKey) error {
+	if sa == nil {
+		return fmt.Errorf("missing signed attestation")
+	}
+	if len(trustedPub) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid trusted Ed25519 public key length: got %d, want %d", len(trustedPub), ed25519.PublicKeySize)
+	}
+	if sa.Attestation.SchemaVersion != SchemaVersion {
+		return fmt.Errorf("unsupported attestation schema version %q", sa.Attestation.SchemaVersion)
+	}
 	embeddedPub, err := base64.StdEncoding.DecodeString(sa.PublicKey)
 	if err != nil {
 		return fmt.Errorf("decoding embedded public key: %w", err)
+	}
+	if len(embeddedPub) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid embedded Ed25519 public key length: got %d, want %d", len(embeddedPub), ed25519.PublicKeySize)
 	}
 	if !ed25519.PublicKey(embeddedPub).Equal(trustedPub) {
 		return fmt.Errorf("attestation was signed by an untrusted key")
@@ -121,6 +136,9 @@ func Verify(sa *SignedAttestation, trustedPub ed25519.PublicKey) error {
 	sig, err := base64.StdEncoding.DecodeString(sa.Signature)
 	if err != nil {
 		return fmt.Errorf("decoding signature: %w", err)
+	}
+	if len(sig) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid Ed25519 signature length: got %d, want %d", len(sig), ed25519.SignatureSize)
 	}
 	msg, err := canonicalBytes(sa.Attestation)
 	if err != nil {

@@ -27,6 +27,11 @@ start in this mode unless all of the following are configured:
   used to verify provenance before promotion.
 - `WRAITH_ES_ADDR` and `WRAITH_NEO4J_ADDR` for the validation services.
 
+Configure `WRAITH_TRUSTED_PROXIES` with only the IP addresses/CIDRs of your
+actual reverse proxies if the API sits behind an ingress or load balancer. It
+defaults to empty, so forwarded client-IP headers are ignored. Never trust
+`0.0.0.0/0` or `::/0`; doing so lets callers spoof IP-based rate-limit identity.
+
 Local development remains flexible when `WRAITH_ENV` is unset or set to
 `development`. This startup guard validates required configuration shape; it
 does not replace live dependency health checks, TLS verification, secret

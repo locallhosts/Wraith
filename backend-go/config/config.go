@@ -25,6 +25,7 @@ type Config struct {
 	PlaygroundRequestsPerMinute int // tighter anonymous Playground limit
 	PublicPlayground bool
 	PublicOrigins []string
+	TrustedProxies []string // trusted reverse-proxy IPs/CIDRs; empty means ignore forwarded IP headers
 }
 
 func Load() Config {
@@ -43,6 +44,7 @@ func Load() Config {
 		PlaygroundRequestsPerMinute: envInt("WRAITH_PLAYGROUND_RPM", 30),
 		PublicPlayground: envBool("WRAITH_PUBLIC_PLAYGROUND", false),
 		PublicOrigins: envList("WRAITH_PUBLIC_ORIGINS", "http://localhost:3000"),
+		TrustedProxies: envList("WRAITH_TRUSTED_PROXIES", ""),
 	}
 }
 

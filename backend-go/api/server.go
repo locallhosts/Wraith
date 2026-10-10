@@ -51,6 +51,7 @@ type Server struct {
 	RateLimit         gin.HandlerFunc // optional, applied globally if set
 	PublicPlayground  bool
 	PublicOrigins     map[string]bool
+	TrustedProxies    []string
 }
 
 func (s *Server) outputDir() string {
@@ -113,6 +114,13 @@ func NewRouter(s *Server) *gin.Engine {
 	}
 
 	r := gin.New()
+	if err := validateTrustedProxyList(s.TrustedProxies); err != nil {
+		s.Log.Error("invalid trusted proxy configuration; forwarded IP headers will be ignored", "error", err)
+		_ = r.SetTrustedProxies(nil)
+	} else if err := r.SetTrustedProxies(s.TrustedProxies); err != nil {
+		s.Log.Error("cannot configure trusted proxies; forwarded IP headers will be ignored", "error", err)
+		_ = r.SetTrustedProxies(nil)
+	}
 
 	r.Use(gin.Recovery(), slogMiddleware(s.Log), securityHeadersMiddleware(), requestTimeoutMiddleware(30*time.Second))
 	r.Use(corsMiddleware(s.PublicOrigins))

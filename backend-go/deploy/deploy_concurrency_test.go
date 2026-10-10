@@ -12,7 +12,10 @@ import (
 
 func testESClient(t *testing.T, handler http.HandlerFunc) (*elasticsearch.Client, func()) {
 	t.Helper()
-	server := httptest.NewServer(handler)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		handler(w, r)
+	}))
 	client, err := elasticsearch.NewClient(elasticsearch.Config{Addresses: []string{server.URL}})
 	if err != nil {
 		server.Close()

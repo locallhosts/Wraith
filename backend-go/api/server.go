@@ -114,8 +114,11 @@ func NewRouter(s *Server) *gin.Engine {
 	}
 
 	r := gin.New()
-	if err := r.SetTrustedProxies(s.TrustedProxies); err != nil {
+	if err := validateTrustedProxyList(s.TrustedProxies); err != nil {
 		s.Log.Error("invalid trusted proxy configuration; forwarded IP headers will be ignored", "error", err)
+		_ = r.SetTrustedProxies(nil)
+	} else if err := r.SetTrustedProxies(s.TrustedProxies); err != nil {
+		s.Log.Error("cannot configure trusted proxies; forwarded IP headers will be ignored", "error", err)
 		_ = r.SetTrustedProxies(nil)
 	}
 

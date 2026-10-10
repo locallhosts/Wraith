@@ -125,7 +125,12 @@ func runServe() {
 		PublicOrigins: func() map[string]bool { m := map[string]bool{}; for _, o := range cfg.PublicOrigins { m[o] = true }; return m }(),
 		RateLimit: limiter.Middleware(func(c *gin.Context) string {
 			if id, ok := auth.GetIdentity(c); ok {
-				return id.Label
+				if id.KeyID != "" {
+					return "api-key:" + id.KeyID
+				}
+				if id.Label != "" {
+					return "label:" + id.Label
+				}
 			}
 			return ""
 		}),

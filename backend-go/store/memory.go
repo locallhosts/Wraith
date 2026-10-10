@@ -87,15 +87,19 @@ func (m *MemoryStore) AppendAudit(_ context.Context, e *AuditEntry) error {
 	defer m.mu.Unlock()
 	e.ID = int64(len(m.audit) + 1)
 	e.Timestamp = time.Now()
-	m.audit = append(m.audit, e)
+	cp := *e
+	m.audit = append(m.audit, &cp)
 	return nil
 }
 
 func (m *MemoryStore) ListAudit(_ context.Context, limit int) ([]*AuditEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	out := make([]*AuditEntry, len(m.audit))
-	copy(out, m.audit)
+	out := make([]*AuditEntry, 0, len(m.audit))
+	for _, entry := range m.audit {
+		cp := *entry
+		out = append(out, &cp)
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Timestamp.After(out[j].Timestamp) })
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
@@ -110,7 +114,8 @@ func (m *MemoryStore) GetAPIKey(_ context.Context, keyHash string) (*APIKey, err
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return k, nil
+	cp := *k
+	return &cp, nil
 }
 
 func (m *MemoryStore) Ping(_ context.Context) error { return nil }

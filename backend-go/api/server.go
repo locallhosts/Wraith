@@ -51,6 +51,7 @@ type Server struct {
 	RateLimit         gin.HandlerFunc // optional, applied globally if set
 	PublicPlayground  bool
 	PublicOrigins     map[string]bool
+	TrustedProxies    []string
 }
 
 func (s *Server) outputDir() string {

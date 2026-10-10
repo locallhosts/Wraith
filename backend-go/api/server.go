@@ -132,9 +132,10 @@ func NewRouter(s *Server) *gin.Engine {
 		defer cancel()
 
 		if err := s.Store.Ping(ctx); err != nil {
+			s.Log.Error("readiness dependency check failed", "error", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"ready": false,
-				"error": err.Error(),
+				"error": "dependency check failed",
 			})
 			return
 		}

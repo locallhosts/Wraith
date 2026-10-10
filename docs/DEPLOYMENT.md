@@ -15,6 +15,23 @@ end-to-end against a live cluster (image needs to actually exist and be
 pullable, PVC needs a `ReadWriteMany`-capable StorageClass, etc.) — that
 part you'll do in Stage 2 below.
 
+## Production startup guard
+
+Set `WRAITH_ENV=production` in production deployments. The Go API refuses to
+start in this mode unless all of the following are configured:
+
+- `WRAITH_DATABASE_URL` for durable Postgres persistence (the in-memory store
+  seeds a development admin key and is not suitable for production).
+- `WRAITH_WEBHOOK_SECRET` for authenticated GitHub webhook deliveries.
+- `WRAITH_SIGNING_PUBLIC_KEY` containing a base64-encoded Ed25519 public key
+  used to verify provenance before promotion.
+- `WRAITH_ES_ADDR` and `WRAITH_NEO4J_ADDR` for the validation services.
+
+Local development remains flexible when `WRAITH_ENV` is unset or set to
+`development`. This startup guard validates required configuration shape; it
+does not replace live dependency health checks, TLS verification, secret
+rotation, or an end-to-end deployment test.
+
 ## Stage 1 — test locally before touching a real cluster
 
 Don't apply these manifests to a shared/production cluster first. Spin up

@@ -67,6 +67,10 @@ func main() {
 func runServe() {
 	cfg := config.Load()
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if err := validateProductionConfig(cfg, os.Getenv("WRAITH_ENV")); err != nil {
+		logger.Error("unsafe production configuration", "error", err)
+		os.Exit(1)
+	}
 
 	if cfg.WebhookSecret == "" {
 		logger.Warn("WRAITH_WEBHOOK_SECRET is unset — webhook signature verification will reject all requests")

@@ -72,7 +72,7 @@ func (l *Limiter) allow(key string, ratePerMin, capacity float64) bool {
 	elapsed := now.Sub(b.lastRefill).Minutes()
 	b.tokens += elapsed * ratePerMin
 	if b.tokens > capacity {
-		b.tokens = l.capacity
+		b.tokens = capacity
 	}
 	b.lastRefill = now
 

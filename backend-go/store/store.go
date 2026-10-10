@@ -12,6 +12,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrNoJobAvailable = errors.New("no pipeline job available")
+var ErrJobNotRetryable = errors.New("pipeline job is not retryable")
 
 // RunStatus tracks one end-to-end pipeline execution for a rule/PR.
 type RunStatus struct {

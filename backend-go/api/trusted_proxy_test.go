@@ -28,3 +28,32 @@ func TestNewRouterDoesNotTrustForwardedIPByDefault(t *testing.T) {
 		t.Fatalf("spoofed X-Forwarded-For was trusted by default: got %q", rec.Body.String())
 	}
 }
+
+
+func TestValidateTrustedProxyList(t *testing.T) {
+	tests := []struct {
+		name string
+		proxies []string
+		wantErr bool
+	}{
+		{name: "empty means no trusted proxies", proxies: nil},
+		{name: "single proxy IP", proxies: []string{"127.0.0.1"}},
+		{name: "specific CIDR", proxies: []string{"10.0.0.0/8", "2001:db8::/32"}},
+		{name: "IPv4 wildcard", proxies: []string{"0.0.0.0/0"}, wantErr: true},
+		{name: "IPv6 wildcard", proxies: []string{"::/0"}, wantErr: true},
+		{name: "invalid CIDR", proxies: []string{"10.0.0.0/77"}, wantErr: true},
+		{name: "invalid IP", proxies: []string{"proxy.example.com"}, wantErr: true},
+		{name: "empty entry", proxies: []string{""}, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTrustedProxyList(tt.proxies)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected invalid proxy list to be rejected")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected validation error: %v", err)
+			}
+		})
+	}
+}

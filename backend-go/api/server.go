@@ -415,11 +415,11 @@ func listAudit(s *Server, c *gin.Context) {
 func getRunReport(s *Server, c *gin.Context) {
 	runID := c.Param("id")
 
-	reportPath := fmt.Sprintf(
-		"%s/%s/report.json",
-		s.outputDir(),
-		runID,
-	)
+	reportPath, pathErr := runArtifactPath(s.outputDir(), runID, "report.json")
+	if pathErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run id"})
+		return
+	}
 
 	data, err := os.ReadFile(reportPath)
 	if err != nil {
@@ -449,11 +449,11 @@ func getRunReport(s *Server, c *gin.Context) {
 func getRunAttestation(s *Server, c *gin.Context) {
 	runID := c.Param("id")
 
-	attPath := fmt.Sprintf(
-		"%s/%s/attestation.json",
-		s.outputDir(),
-		runID,
-	)
+	attPath, pathErr := runArtifactPath(s.outputDir(), runID, "attestation.json")
+	if pathErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run id"})
+		return
+	}
 
 	data, err := os.ReadFile(attPath)
 	if err != nil {

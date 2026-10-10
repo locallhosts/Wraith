@@ -15,7 +15,7 @@ func runArtifactPath(outputDir, runID, artifact string) (string, error) {
 	if !safeRunIDPattern.MatchString(runID) || runID == "." || runID == ".." {
 		return "", fmt.Errorf("invalid run id")
 	}
-	if artifact != "report.json" && artifact != "attestation.json" {
+	if artifact != "report.json" && artifact != "attestation.json" && artifact != "query_dsl.json" {
 		return "", fmt.Errorf("invalid run artifact")
 	}
 	return filepath.Join(outputDir, runID, artifact), nil

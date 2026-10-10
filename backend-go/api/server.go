@@ -180,6 +180,10 @@ func NewRouter(s *Server) *gin.Engine {
 			getRunReport(s, c)
 		})
 
+		api.GET("/runs/:id/translation", auth.RequireRole("viewer"), func(c *gin.Context) {
+			getRunTranslation(s, c)
+		})
+
 		api.GET("/runs/:id/stages", auth.RequireRole("viewer"), func(c *gin.Context) {
 			listRunStages(s, c)
 		})
@@ -461,6 +465,35 @@ func getRunReport(s *Server, c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, parsed)
+}
+
+// getRunTranslation serves the Elasticsearch Query DSL artifact produced by a run.
+// It uses runArtifactPath to constrain the run ID and never exposes arbitrary filesystem paths.
+func getRunTranslation(s *Server, c *gin.Context) {
+	runID := c.Param("id")
+	queryPath, pathErr := runArtifactPath(s.outputDir(), runID, "query_dsl.json")
+	if pathErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid run id"})
+		return
+	}
+
+	data, err := os.ReadFile(queryPath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no translated query found for this run yet"})
+		return
+	}
+
+	var query any
+	if err := json.Unmarshal(data, &query); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "translated query artifact is malformed"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"run_id": runID,
+		"query_dsl": query,
+		"path": "query_dsl.json",
+	})
 }
 
 // getRunAttestation serves the signed provenance attestation for a run, if

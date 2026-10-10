@@ -123,6 +123,7 @@ func runServe() {
 		Log:               logger,
 		PublicPlayground: cfg.PublicPlayground,
 		PublicOrigins: func() map[string]bool { m := map[string]bool{}; for _, o := range cfg.PublicOrigins { m[o] = true }; return m }(),
+		TrustedProxies: cfg.TrustedProxies,
 		RateLimit: limiter.Middleware(func(c *gin.Context) string {
 			if id, ok := auth.GetIdentity(c); ok {
 				return id.Label

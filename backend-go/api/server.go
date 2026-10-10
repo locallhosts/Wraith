@@ -286,6 +286,11 @@ func handleWebhook(s *Server, c *gin.Context) {
 		return
 	}
 
+	if err := validateWebhookEvent(evt); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pull request webhook payload"})
+		return
+	}
+
 	results, err := linter.LintDir(s.RulesDir)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -301,9 +306,11 @@ func handleWebhook(s *Server, c *gin.Context) {
 			continue
 		}
 
-		runID := safeSlice(evt.PullRequest.Head.Sha, 8) +
-			"-" +
-			safeSlice(res.Rule.ID, 8)
+		runID, err := buildRunID(evt.PullRequest.Head.Sha, res.Rule.ID)
+		if err != nil {
+			s.Log.Error("cannot derive run ID", "rule_id", res.Rule.ID, "error", err)
+			continue
+		}
 
 		status := &store.RunStatus{
 			RunID:     runID,
@@ -355,14 +362,6 @@ func handleWebhook(s *Server, c *gin.Context) {
 		"triggered_runs": triggered,
 		"lint_results":   results,
 	})
-}
-
-func safeSlice(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-
-	return s[:n]
 }
 
 func listRuns(s *Server, c *gin.Context) {

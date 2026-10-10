@@ -70,17 +70,31 @@ type DeploymentRecord struct {
 func hashRule(content []byte) string { sum := sha256.Sum256(content); return hex.EncodeToString(sum[:]) }
 
 func readCurrent(ctx context.Context, es *elasticsearch.Client, ruleID string) ([]byte, error) {
+	source, _, _, err := readCurrentVersion(ctx, es, ruleID)
+	return source, err
+}
+
+// readCurrentVersion captures Elasticsearch optimistic-concurrency metadata
+// with the source so later writes can reject stale deployment/rollback work.
+func readCurrentVersion(ctx context.Context, es *elasticsearch.Client, ruleID string) ([]byte, int64, int64, error) {
 	res, err := es.Get(ProductionIndex, ruleID, es.Get.WithContext(ctx))
-	if err != nil { return nil, fmt.Errorf("reading production rule: %w", err) }
+	if err != nil { return nil, 0, 0, fmt.Errorf("reading production rule: %w", err) }
 	defer res.Body.Close()
-	if res.StatusCode == 404 { return nil, nil }
+	if res.StatusCode == 404 { return nil, 0, 0, nil }
 	if res.IsError() {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
-		return nil, fmt.Errorf("reading production rule: HTTP %s: %s", res.Status(), string(body))
+		return nil, 0, 0, fmt.Errorf("reading production rule: HTTP %s: %s", res.Status(), string(body))
 	}
-	var envelope struct { Source json.RawMessage `json:"_source"` }
-	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil { return nil, fmt.Errorf("decoding production rule: %w", err) }
-	return envelope.Source, nil
+	var envelope struct {
+		Source json.RawMessage `json:"_source"`
+		SeqNo int64 `json:"_seq_no"`
+		PrimaryTerm int64 `json:"_primary_term"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&envelope); err != nil { return nil, 0, 0, fmt.Errorf("decoding production rule: %w", err) }
+	if len(envelope.Source) == 0 || envelope.SeqNo < 0 || envelope.PrimaryTerm < 1 {
+		return nil, 0, 0, fmt.Errorf("production rule response missing concurrency metadata")
+	}
+	return envelope.Source, envelope.SeqNo, envelope.PrimaryTerm, nil
 }
 
 func indexDocument(ctx context.Context, es *elasticsearch.Client, index, id string, value any) error {
@@ -90,6 +104,47 @@ func indexDocument(ctx context.Context, es *elasticsearch.Client, index, id stri
 	if res.IsError() {
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
 		return fmt.Errorf("elasticsearch write rejected: HTTP %s: %s", res.Status(), string(body))
+	}
+	return nil
+}
+
+
+// indexDocumentConditional updates a production document only if the exact
+// version read by the caller is still current.
+func indexDocumentConditional(ctx context.Context, es *elasticsearch.Client, index, id string, value any, seqNo, primaryTerm int64) error {
+	res, err := es.Index(index, jsonReader(value), es.Index.WithDocumentID(id), es.Index.WithIfSeqNo(int(seqNo)), es.Index.WithIfPrimaryTerm(int(primaryTerm)), es.Index.WithContext(ctx), es.Index.WithRefresh("true"))
+	if err != nil { return err }
+	defer res.Body.Close()
+	if res.StatusCode == 409 { return ErrConcurrentChange }
+	if res.IsError() {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+		return fmt.Errorf("conditional Elasticsearch write rejected: HTTP %s: %s", res.Status(), string(body))
+	}
+	return nil
+}
+
+// indexDocumentCreate prevents two concurrent first-time deployments from
+// overwriting each other when the production rule does not yet exist.
+func indexDocumentCreate(ctx context.Context, es *elasticsearch.Client, index, id string, value any) error {
+	res, err := es.Index(index, jsonReader(value), es.Index.WithDocumentID(id), es.Index.WithOpType("create"), es.Index.WithContext(ctx), es.Index.WithRefresh("true"))
+	if err != nil { return err }
+	defer res.Body.Close()
+	if res.StatusCode == 409 { return ErrConcurrentChange }
+	if res.IsError() {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+		return fmt.Errorf("create-only Elasticsearch write rejected: HTTP %s: %s", res.Status(), string(body))
+	}
+	return nil
+}
+
+func deleteDocumentConditional(ctx context.Context, es *elasticsearch.Client, index, id string, seqNo, primaryTerm int64) error {
+	res, err := es.Delete(index, id, es.Delete.WithIfSeqNo(int(seqNo)), es.Delete.WithIfPrimaryTerm(int(primaryTerm)), es.Delete.WithContext(ctx), es.Delete.WithRefresh("true"))
+	if err != nil { return err }
+	defer res.Body.Close()
+	if res.StatusCode == 409 { return ErrConcurrentChange }
+	if res.IsError() {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 8<<10))
+		return fmt.Errorf("conditional Elasticsearch delete rejected: HTTP %s: %s", res.Status(), string(body))
 	}
 	return nil
 }
@@ -114,7 +169,7 @@ func Deploy(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy
 		DeployedAt: time.Now().UTC(), AttestationSig: signed.Signature,
 		ContentSHA256: hashRule(currentRuleYAML),
 	}
-	previous, err := readCurrent(ctx, es, rule.RuleID)
+	previous, seqNo, primaryTerm, err := readCurrentVersion(ctx, es, rule.RuleID)
 	if err != nil { return nil, err }
 	if previous != nil {
 		var prev DeployedRule
@@ -126,9 +181,16 @@ func Deploy(ctx context.Context, es *elasticsearch.Client, gate Gate, approvedBy
 	deploymentID := hashRule([]byte(rule.RunID+"|"+rule.ContentSHA256+"|"+rule.DeployedAt.Format(time.RFC3339Nano)))[:24]
 	record := DeploymentRecord{DeploymentID: deploymentID, RuleID: rule.RuleID, RunID: rule.RunID, Actor: approvedBy, Status: "pending", CreatedAt: rule.DeployedAt, PreviousSource: previous, CurrentSource: current}
 	if err := indexDocument(ctx, es, HistoryIndex, deploymentID, record); err != nil { return nil, fmt.Errorf("creating deployment record: %w", err) }
-	if err := indexDocument(ctx, es, ProductionIndex, rule.RuleID, rule); err != nil {
-		_ = updateHistory(ctx, es, deploymentID, map[string]any{"status":"failed","error":err.Error()})
-		return nil, fmt.Errorf("indexing deployed rule: %w", err)
+	var writeErr error
+	if previous == nil {
+		writeErr = indexDocumentCreate(ctx, es, ProductionIndex, rule.RuleID, rule)
+	} else {
+		writeErr = indexDocumentConditional(ctx, es, ProductionIndex, rule.RuleID, rule, seqNo, primaryTerm)
+	}
+	if writeErr != nil {
+		_ = updateHistory(ctx, es, deploymentID, map[string]any{"status":"failed","error":writeErr.Error()})
+		if writeErr == ErrConcurrentChange { return nil, ErrConcurrentChange }
+		return nil, fmt.Errorf("indexing deployed rule: %w", writeErr)
 	}
 	if err := updateHistory(ctx, es, deploymentID, map[string]any{"status":"verified","verified_at":time.Now().UTC()}); err != nil {
 		return nil, fmt.Errorf("deployment succeeded but history verification failed: %w", err)
@@ -183,16 +245,15 @@ func Rollback(ctx context.Context, es *elasticsearch.Client, deploymentID string
 	record, err := GetHistory(ctx, es, deploymentID)
 	if err != nil { return nil, err }
 	if record.Status != "verified" { return nil, fmt.Errorf("deployment %s is not in a rollback-safe state", deploymentID) }
-	current, err := readCurrent(ctx, es, record.RuleID)
+	current, seqNo, primaryTerm, err := readCurrentVersion(ctx, es, record.RuleID)
 	if err != nil { return nil, err }
 	if current == nil { return nil, fmt.Errorf("production rule %q is already absent", record.RuleID) }
 	var currentRule, deployed DeployedRule
 	if json.Unmarshal(current,&currentRule)!=nil || json.Unmarshal(record.CurrentSource,&deployed)!=nil { return nil, fmt.Errorf("deployment record or current production rule is malformed") }
 	if currentRule.RunID != deployed.RunID || currentRule.ContentSHA256 != deployed.ContentSHA256 { return nil, ErrConcurrentChange }
 	if len(record.PreviousSource)==0 || string(record.PreviousSource)=="null" {
-		res,err:=es.Delete(ProductionIndex,record.RuleID,es.Delete.WithContext(ctx),es.Delete.WithRefresh("true")); if err!=nil{return nil,err}; defer res.Body.Close()
-		if res.IsError(){body,_:=io.ReadAll(io.LimitReader(res.Body,8<<10));return nil,fmt.Errorf("rollback delete rejected: HTTP %s: %s",res.Status(),string(body))}
-	} else if err:=indexDocument(ctx,es,ProductionIndex,record.RuleID,json.RawMessage(record.PreviousSource)); err!=nil { return nil,fmt.Errorf("rollback restore rejected: %w",err) }
+		if err := deleteDocumentConditional(ctx, es, ProductionIndex, record.RuleID, seqNo, primaryTerm); err != nil { return nil, err }
+	} else if err:=indexDocumentConditional(ctx,es,ProductionIndex,record.RuleID,json.RawMessage(record.PreviousSource),seqNo,primaryTerm); err!=nil { return nil,fmt.Errorf("rollback restore rejected: %w",err) }
 	if err:=updateHistory(ctx,es,deploymentID,map[string]any{"status":"rolled_back","verified_at":time.Now().UTC()});err!=nil{return nil,fmt.Errorf("rollback succeeded but history update failed: %w",err)}
 	record.Status="rolled_back"
 	return record,nil

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,10 @@ import (
 
 // PullRequestEvent is the subset of GitHub's pull_request webhook payload
 // this pipeline cares about.
+const MaxWebhookBodyBytes int64 = 5 << 20
+
+var ErrPayloadTooLarge = errors.New("webhook payload exceeds size limit")
+
 type PullRequestEvent struct {
 	Action      string `json:"action"`
 	Number      int    `json:"number"`
@@ -35,6 +40,9 @@ type PullRequestEvent struct {
 // VerifySignature validates the X-Hub-Signature-256 header GitHub sends,
 // per https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 func VerifySignature(payload []byte, signatureHeader, secret string) error {
+	if secret == "" {
+		return fmt.Errorf("webhook secret is not configured")
+	}
 	if signatureHeader == "" {
 		return fmt.Errorf("missing X-Hub-Signature-256 header")
 	}
@@ -63,9 +71,12 @@ func VerifySignature(payload []byte, signatureHeader, secret string) error {
 // ParsePullRequestEvent reads and verifies the request body, returning a
 // decoded PullRequestEvent only if the signature is valid.
 func ParsePullRequestEvent(r *http.Request, secret string) (*PullRequestEvent, error) {
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, MaxWebhookBodyBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading body: %w", err)
+	}
+	if int64(len(body)) > MaxWebhookBodyBytes {
+		return nil, ErrPayloadTooLarge
 	}
 	if err := VerifySignature(body, r.Header.Get("X-Hub-Signature-256"), secret); err != nil {
 		return nil, fmt.Errorf("signature verification failed: %w", err)

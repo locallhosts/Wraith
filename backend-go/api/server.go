@@ -312,6 +312,18 @@ func handleWebhook(s *Server, c *gin.Context) {
 			continue
 		}
 
+		existing, lookupErr := s.Store.GetRun(c.Request.Context(), runID)
+		if lookupErr == nil {
+			// Replayed deliveries for active or completed runs are idempotent.
+			// Failed runs may be enqueued again as an explicit retry signal.
+			if existing.Stage != "failed" {
+				continue
+			}
+		} else if !errors.Is(lookupErr, store.ErrNotFound) {
+			s.Log.Error("cannot check existing run before enqueue", "run_id", runID, "error", lookupErr)
+			continue
+		}
+
 		status := &store.RunStatus{
 			RunID:     runID,
 			RulePath:  res.Path,

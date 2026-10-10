@@ -70,7 +70,7 @@ jobs:
           node-version: "22"
 
       - working-directory: frontend
-        run: npm install --package-lock-only && npm audit --audit-level=high
+        run: npm install --legacy-peer-deps --package-lock-only && npm audit --audit-level=high
 
   trivy-container-scan:
     runs-on: ubuntu-latest

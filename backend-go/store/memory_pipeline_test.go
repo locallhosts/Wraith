@@ -69,3 +69,28 @@ func TestMemoryEnqueuePipelineJobRequeuesFailedJobInPlace(t *testing.T) {
 		t.Fatalf("failed job was not reset in place: %#v", got)
 	}
 }
+
+
+func TestRetryPipelineJobRequiresFailedOrCancelledState(t *testing.T) {
+	ctx := context.Background()
+	m := NewMemoryStore()
+	if err := m.EnqueuePipelineJob(ctx, &PipelineJob{RunID: "run-state-guard", RulePath: "rules/example.yml"}); err != nil {
+		t.Fatalf("enqueue job: %v", err)
+	}
+	jobs, err := m.ListPipelineJobs(ctx, 10)
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("list job: jobs=%#v err=%v", jobs, err)
+	}
+	if err := m.RetryPipelineJob(ctx, jobs[0].ID); err != ErrJobNotRetryable {
+		t.Fatalf("queued job must not be retried, got %v", err)
+	}
+	if err := m.CompletePipelineJob(ctx, jobs[0].ID, "succeeded", ""); err != nil {
+		t.Fatalf("complete job: %v", err)
+	}
+	if err := m.RetryPipelineJob(ctx, jobs[0].ID); err != ErrJobNotRetryable {
+		t.Fatalf("succeeded job must not be retried, got %v", err)
+	}
+	if err := m.RetryPipelineJob(ctx, 9999); err != ErrNotFound {
+		t.Fatalf("missing job should return ErrNotFound, got %v", err)
+	}
+}

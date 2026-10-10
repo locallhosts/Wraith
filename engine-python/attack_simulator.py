@@ -226,13 +226,15 @@ def build_attack_chain(
         if technique in available
     ]
 
-    if not known:
+    if not available:
         raise ValueError(
-            "No MITRE telemetry mapping is available for the rule's "
-            f"techniques and target OS '{target_os}'. "
-            f"Tagged techniques: {techniques}"
+            "No MITRE telemetry mapping is available for the requested "
+            f"target OS '{target_os}'."
         )
 
+    # Unknown or unsupported tags should not prevent a representative
+    # synthetic chain from being built. When no supplied tag is available,
+    # use the first compatible mapping for each tactic below.
     chain = []
 
     for tactic in TACTIC_ORDER:

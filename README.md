@@ -26,6 +26,7 @@ The central idea is simple: **a detection rule should be treated as tested softw
 
 ## Contents
 
+
 - [Why Wraith](#why-wraith)
 - [Capabilities](#capabilities)
 - [How the pipeline works](#how-the-pipeline-works)

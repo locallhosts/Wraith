@@ -1,5 +1,16 @@
 # Wraith
 
+<p align="center">
+  <a href="https://github.com/locallhosts/Wraith/actions/workflows/platform-ci.yml"><img alt="Platform CI" src="https://github.com/locallhosts/Wraith/actions/workflows/platform-ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/locallhosts/Wraith/actions/workflows/frontend-ci.yml"><img alt="Frontend CI" src="https://github.com/locallhosts/Wraith/actions/workflows/frontend-ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/locallhosts/Wraith/actions/workflows/detection-ci.yml"><img alt="Detection CI" src="https://github.com/locallhosts/Wraith/actions/workflows/detection-ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/locallhosts/Wraith/blob/main/LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
+  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13%2B-3776AB.svg?logo=python&logoColor=white">
+  <img alt="Go 1.25" src="https://img.shields.io/badge/Go-1.25%2B-00ADD8.svg?logo=go&logoColor=white">
+  <img alt="Node.js 22" src="https://img.shields.io/badge/Node.js-22%2B-339933.svg?logo=node.js&logoColor=white">
+  <img alt="Docker Compose" src="https://img.shields.io/badge/Docker-Compose-2496ED.svg?logo=docker&logoColor=white">
+</p>
+
 **Detection engineering, validation, and security assurance — from rule authoring to deployment evidence.**
 
 Wraith is an open-source security engineering platform for building, translating, testing, and validating detection rules before they are promoted into production. It combines a Go control plane, a Python detection-validation engine, and a TypeScript/Next.js operations interface with data services for telemetry, state, and attack relationships.
